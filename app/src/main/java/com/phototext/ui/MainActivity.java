@@ -43,6 +43,7 @@ public class MainActivity extends AppCompatActivity {
     private TextToSpeechManager ttsManager;
 
     @RequiresApi(api = Build.VERSION_CODES.TIRAMISU)
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -59,6 +60,15 @@ public class MainActivity extends AppCompatActivity {
         initManagers();
         setupListeners();
         requestStoragePermission();
+    }
+
+    // Applica le nuove impostazioni della voce quando si torna in MainActivity
+    @Override
+    protected void onResume() {
+        super.onResume();
+        if (ttsManager != null) {
+            ttsManager.applySettings(); // 🔹 Aggiorna la voce senza interrompere la riproduzione
+        }
     }
 
     /** Inizializza gli elementi UI */

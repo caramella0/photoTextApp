@@ -1,9 +1,8 @@
 package com.phototext.ui;
 
-import android.content.Intent;
 import android.content.SharedPreferences;
 import android.os.Bundle;
-import android.util.Log;
+import android.widget.Button;
 import android.widget.RadioButton;
 import android.widget.RadioGroup;
 import android.widget.SeekBar;
@@ -14,6 +13,8 @@ import androidx.appcompat.app.AppCompatActivity;
 import androidx.appcompat.app.AppCompatDelegate;
 
 import com.phototext.R;
+import com.phototext.tts.TextToSpeechManager;
+
 import java.util.Locale;
 
 public class SettingsActivity extends AppCompatActivity {
@@ -21,19 +22,29 @@ public class SettingsActivity extends AppCompatActivity {
     private TextView pitchValue, speedValue;
     private RadioGroup voiceGenderGroup, themeRadioGroup;
     private SharedPreferences preferences;
+    private TextToSpeechManager ttsManager;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        applySavedTheme();
-        setContentView(R.layout.activity_settings);
 
+        // Inizializza SharedPreferences e applica il tema prima di caricare il layout
+        preferences = getSharedPreferences("AppSettings", MODE_PRIVATE);
+        applySavedTheme();
+
+        setContentView(R.layout.activity_settings);
+        ttsManager = new TextToSpeechManager(this);
+
+        // Inizializza componenti UI
         initViews();
         loadSettings();
-        setupListeners();
+
+        // Gestisce il pulsante "Applica Modifiche"
+        Button btnApplySettings = findViewById(R.id.btnApplySettings);
+        btnApplySettings.setOnClickListener(v -> applySettings());
     }
 
-    /** Inizializza gli elementi UI */
+    /** Inizializza i componenti UI */
     private void initViews() {
         pitchSeekBar = findViewById(R.id.pitchSeekBar);
         speedSeekBar = findViewById(R.id.speedSeekBar);
@@ -41,111 +52,78 @@ public class SettingsActivity extends AppCompatActivity {
         speedValue = findViewById(R.id.speedValue);
         voiceGenderGroup = findViewById(R.id.voiceGenderGroup);
         themeRadioGroup = findViewById(R.id.themeRadioGroup);
+
+        // Listener per aggiornare i valori delle SeekBar in tempo reale
+        pitchSeekBar.setOnSeekBarChangeListener(createSeekBarListener("pitch", pitchValue));
+        speedSeekBar.setOnSeekBarChangeListener(createSeekBarListener("speed", speedValue));
     }
 
     /** Carica le impostazioni salvate e aggiorna la UI */
     private void loadSettings() {
-        preferences = getSharedPreferences("AppSettings", MODE_PRIVATE);
-
-        // Carica il tema selezionato
+        // Carica tema
         boolean isDarkTheme = preferences.getBoolean("isDarkTheme", false);
         ((RadioButton) findViewById(isDarkTheme ? R.id.radioDark : R.id.radioLight)).setChecked(true);
-        Log.d("SettingsActivity", "Tema caricato: " + (isDarkTheme ? "Scuro" : "Chiaro"));
 
-        // Carica il genere della voce
+        // Carica genere della voce
         String savedVoice = preferences.getString("voiceGender", "male");
         ((RadioButton) findViewById("male".equals(savedVoice) ? R.id.voiceMale : R.id.voiceFemale)).setChecked(true);
-        Log.d("SettingsActivity", "Voce caricata: " + savedVoice);
 
-        // Carica tonalità e velocità della voce
+        // Carica tonalità e velocità
         float savedPitch = preferences.getFloat("pitch", 1.0f);
         float savedSpeed = preferences.getFloat("speed", 1.0f);
         pitchSeekBar.setProgress((int) (savedPitch * 50));
         speedSeekBar.setProgress((int) (savedSpeed * 50));
         pitchValue.setText(String.format(Locale.US, "Tonalità: %.1f", savedPitch));
         speedValue.setText(String.format(Locale.US, "Velocità: %.1f", savedSpeed));
-
-        Log.d("SettingsActivity", "Pitch caricato: " + savedPitch + ", Speed caricata: " + savedSpeed);
     }
 
+    /** Salva le impostazioni e riavvia l'activity */
+    private void applySettings() {
+        SharedPreferences.Editor editor = preferences.edit();
 
-    /** Imposta i listener per i controlli */
-    private void setupListeners() {
-        pitchSeekBar.setOnSeekBarChangeListener(createSeekBarListener("pitch", pitchValue));
-        speedSeekBar.setOnSeekBarChangeListener(createSeekBarListener("speed", speedValue));
+        // Salva tema
+        boolean isDarkTheme = themeRadioGroup.getCheckedRadioButtonId() == R.id.radioDark;
+        editor.putBoolean("isDarkTheme", isDarkTheme);
 
-        voiceGenderGroup.setOnCheckedChangeListener((group, checkedId) -> {
-            String selectedVoice = (checkedId == R.id.voiceMale) ? "male" : "female";
-            preferences.edit().putString("voiceGender", selectedVoice).apply();
-            Log.d("SettingsActivity", "Voce selezionata: " + selectedVoice);
-        });
+        // Salva voce selezionata
+        String selectedVoice = (voiceGenderGroup.getCheckedRadioButtonId() == R.id.voiceMale) ? "male" : "female";
+        editor.putString("voiceGender", selectedVoice);
 
-        findViewById(R.id.btnApplySettings).setOnClickListener(v -> applySettings());
+        // Salva tonalità e velocità
+        float pitch = pitchSeekBar.getProgress() / 50.0f;
+        float speed = speedSeekBar.getProgress() / 50.0f;
+        editor.putFloat("pitch", pitch);
+        editor.putFloat("speed", speed);
+        editor.apply();
+
+        // Applica modifiche al TextToSpeechManager
+        ttsManager.saveSettings(pitch, speed, selectedVoice);
+
+        Toast.makeText(this, "Impostazioni aggiornate!", Toast.LENGTH_SHORT).show();
+
+        // Riavvia l'activity per applicare il nuovo tema
+        recreate();
     }
 
-    /** Crea un listener per aggiornare in tempo reale i valori */
+    /** Applica il tema salvato */
+    private void applySavedTheme() {
+        boolean isDarkTheme = preferences.getBoolean("isDarkTheme", false);
+        AppCompatDelegate.setDefaultNightMode(
+                isDarkTheme ? AppCompatDelegate.MODE_NIGHT_YES : AppCompatDelegate.MODE_NIGHT_NO
+        );
+    }
+
+    /** Listener per aggiornare le SeekBar */
     private SeekBar.OnSeekBarChangeListener createSeekBarListener(String key, TextView valueText) {
         return new SeekBar.OnSeekBarChangeListener() {
             @Override
             public void onProgressChanged(SeekBar seekBar, int progress, boolean fromUser) {
                 float newValue = progress / 50.0f;
                 valueText.setText(String.format(Locale.US, "%s: %.1f", key.equals("pitch") ? "Tonalità" : "Velocità", newValue));
-                preferences.edit().putFloat(key, newValue).apply();
             }
 
             @Override public void onStartTrackingTouch(SeekBar seekBar) {}
             @Override public void onStopTrackingTouch(SeekBar seekBar) {}
         };
     }
-
-    /** Applica il tema salvato all'avvio */
-    private void applySavedTheme() {
-        preferences = getSharedPreferences("AppSettings", MODE_PRIVATE);
-        boolean isDarkTheme = preferences.getBoolean("isDarkTheme", false);
-
-        Log.d("SettingsActivity", "Applying Theme: " + (isDarkTheme ? "Scuro" : "Chiaro"));
-
-        AppCompatDelegate.setDefaultNightMode(
-                isDarkTheme ? AppCompatDelegate.MODE_NIGHT_YES : AppCompatDelegate.MODE_NIGHT_NO
-        );
-    }
-
-
-    /** Salva le impostazioni e riavvia l'activity per applicare le modifiche */
-    private void applySettings() {
-        SharedPreferences.Editor editor = preferences.edit();
-
-        // Salva il tema selezionato
-        boolean isDarkTheme = themeRadioGroup.getCheckedRadioButtonId() == R.id.radioDark;
-        editor.putBoolean("isDarkTheme", isDarkTheme);
-        Log.d("SettingsActivity", "Tema salvato: " + (isDarkTheme ? "Scuro" : "Chiaro"));
-
-        // Salva la voce selezionata
-        String selectedVoice = (voiceGenderGroup.getCheckedRadioButtonId() == R.id.voiceMale) ? "male" : "female";
-        editor.putString("voiceGender", selectedVoice);
-        Log.d("SettingsActivity", "Voce salvata: " + selectedVoice);
-
-        // Salva tonalità e velocità della voce
-        float pitch = pitchSeekBar.getProgress() / 50.0f;
-        float speed = speedSeekBar.getProgress() / 50.0f;
-        editor.putFloat("pitch", pitch);
-        editor.putFloat("speed", speed);
-        Log.d("SettingsActivity", "Pitch salvato: " + pitch + ", Speed salvata: " + speed);
-
-        editor.apply();
-
-        Toast.makeText(this, "Impostazioni aggiornate!", Toast.LENGTH_SHORT).show();
-
-        restartActivity();
-    }
-
-
-
-    /** Riavvia l'activity per applicare il nuovo tema */
-    private void restartActivity() {
-        recreate(); // Riavvia l'activity senza bisogno di un nuovo Intent
-    }
-
-
-
 }

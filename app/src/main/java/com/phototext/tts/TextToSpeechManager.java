@@ -12,11 +12,15 @@ import java.util.Set;
 public class TextToSpeechManager {
     private TextToSpeech textToSpeech;
     private final Context context;
-    private boolean isPaused = false;
     private static final String TAG = "TextToSpeechManager";
+
+    private float pitch = 1.0f;
+    private float speed = 1.0f;
+    private String voiceGender = "male";
 
     public TextToSpeechManager(Context context) {
         this.context = context;
+        loadSettings(); // Carica le impostazioni salvate
         initTextToSpeech();
     }
 
@@ -25,40 +29,60 @@ public class TextToSpeechManager {
         textToSpeech = new TextToSpeech(context, status -> {
             if (status == TextToSpeech.SUCCESS) {
                 textToSpeech.setLanguage(Locale.getDefault());
-                updateVoiceSettings();
+                applySettings(); // Applica le impostazioni salvate
             } else {
                 Log.e(TAG, "Errore nell'inizializzazione di TextToSpeech.");
             }
         });
     }
 
-    /** Aggiorna le impostazioni della sintesi vocale */
-    private void updateVoiceSettings() {
+    /** Carica le impostazioni salvate */
+    private void loadSettings() {
         SharedPreferences preferences = context.getSharedPreferences("VoiceSettings", Context.MODE_PRIVATE);
-        float pitch = preferences.getFloat("pitch", 1.0f);
-        float speed = preferences.getFloat("speed", 1.0f);
-        String voiceGender = preferences.getString("voiceGender", "male");
+        pitch = preferences.getFloat("pitch", 1.0f);
+        speed = preferences.getFloat("speed", 1.0f);
+        voiceGender = preferences.getString("voiceGender", "male");
+    }
 
-        Voice selectedVoice = getVoiceByGender(voiceGender);
-        if (selectedVoice != null) {
-            textToSpeech.setVoice(selectedVoice);
-        } else {
-            Log.e(TAG, "Voce non trovata per il genere: " + voiceGender);
+    /** Salva le impostazioni e le applica immediatamente */
+    public void saveSettings(float newPitch, float newSpeed, String newGender) {
+        this.pitch = newPitch;
+        this.speed = newSpeed;
+        this.voiceGender = newGender;
+
+        SharedPreferences preferences = context.getSharedPreferences("VoiceSettings", Context.MODE_PRIVATE);
+        SharedPreferences.Editor editor = preferences.edit();
+        editor.putFloat("pitch", newPitch);
+        editor.putFloat("speed", newSpeed);
+        editor.putString("voiceGender", newGender);
+        editor.apply();
+
+        applySettings(); // Applica subito le nuove impostazioni
+    }
+
+    /** Applica le impostazioni attuali */
+    public void applySettings() {
+        SharedPreferences preferences = context.getSharedPreferences("VoiceSettings", Context.MODE_PRIVATE);
+        float newPitch = preferences.getFloat("pitch", 1.0f);
+        float newSpeed = preferences.getFloat("speed", 1.0f);
+        String newVoiceGender = preferences.getString("voiceGender", "male");
+
+        if (textToSpeech != null) {
+            textToSpeech.setPitch(newPitch);
+            textToSpeech.setSpeechRate(newSpeed);
+
+            Voice selectedVoice = getVoiceByGender(newVoiceGender);
+            if (selectedVoice != null && !selectedVoice.equals(textToSpeech.getVoice())) {
+                textToSpeech.setVoice(selectedVoice);
+            }
         }
-
-        textToSpeech.setPitch(pitch);
-        textToSpeech.setSpeechRate(speed);
     }
 
-    /** Salva la scelta della voce e aggiorna immediatamente le impostazioni */
-    public void saveVoiceChoice(String gender) {
-        SharedPreferences preferences = context.getSharedPreferences("VoiceSettings", Context.MODE_PRIVATE);
-        preferences.edit().putString("voiceGender", gender).apply();
-        updateVoiceSettings();
-    }
 
     /** Ottiene una voce maschile o femminile tra quelle disponibili */
     private Voice getVoiceByGender(String gender) {
+        if (textToSpeech == null) return null;
+
         Set<Voice> voices = textToSpeech.getVoices();
         if (voices == null) return null;
 
@@ -71,12 +95,13 @@ public class TextToSpeechManager {
                 if ("male".equals(gender) && isMale) return voice;
             }
         }
-
         return getDefaultVoice();
     }
 
     /** Restituisce una voce predefinita nel caso in cui non trovi quella richiesta */
     private Voice getDefaultVoice() {
+        if (textToSpeech == null) return null;
+
         Set<Voice> voices = textToSpeech.getVoices();
         if (voices != null) {
             for (Voice voice : voices) {
@@ -90,8 +115,7 @@ public class TextToSpeechManager {
 
     /** Riproduce il testo */
     public void speak(String text) {
-        if (text == null || text.trim().isEmpty()) return;
-        updateVoiceSettings();
+        if (text == null || text.trim().isEmpty() || textToSpeech == null) return;
         textToSpeech.speak(text, TextToSpeech.QUEUE_FLUSH, null, "TTS_ID");
     }
 
@@ -99,15 +123,13 @@ public class TextToSpeechManager {
     public void stop() {
         if (textToSpeech != null) {
             textToSpeech.stop();
-            isPaused = false;
         }
     }
 
     /** Simula la pausa fermando la riproduzione */
     public void pause() {
-        if (textToSpeech.isSpeaking()) {
+        if (textToSpeech != null && textToSpeech.isSpeaking()) {
             textToSpeech.stop();
-            isPaused = true;
         }
     }
 
@@ -117,9 +139,5 @@ public class TextToSpeechManager {
             textToSpeech.stop();
             textToSpeech.shutdown();
         }
-    }
-
-    public boolean isPaused() {
-        return isPaused;
     }
 }
