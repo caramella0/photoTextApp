@@ -2,12 +2,10 @@ package com.phototext.tts;
 
 import android.content.Context;
 import android.content.SharedPreferences;
-import android.os.Environment;
 import android.speech.tts.TextToSpeech;
 import android.speech.tts.Voice;
 import android.util.Log;
 
-import java.io.File;
 import java.util.Locale;
 import java.util.Set;
 
@@ -115,24 +113,6 @@ public class TextToSpeechManager {
             }
         }
         return null;
-    }
-
-    /** Salva il file audio */
-    public void saveAudioFile(String text) {
-        if (text == null || text.trim().isEmpty()) return;
-
-        // Creiamo la cartella per salvare gli audio
-        File audioDir = new File(context.getExternalFilesDir(Environment.DIRECTORY_MUSIC), "AudioEstratti");
-        if (!audioDir.exists()) audioDir.mkdirs();
-
-        // Nome predefinito per il file audio
-        String fileName = "Testo audio estratto_" + System.currentTimeMillis() + ".mp3";
-        File audioFile = new File(audioDir, fileName);
-
-        // Salviamo l'audio generato
-        textToSpeech.synthesizeToFile(text, null, audioFile, "TTS_AUDIO");
-
-        Log.d("TTS", "File audio salvato: " + audioFile.getAbsolutePath());
     }
 
     /** Riproduce il testo */

@@ -52,8 +52,5 @@
             android:name=".ui.SettingsActivity"
             android:exported="true" />
 
-        <!-- Activity per la libreria audio -->
-        <activity android:name=".ui.AudioLibraryActivity" />
-
     </application>
 </manifest>

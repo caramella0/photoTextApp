@@ -13,7 +13,6 @@ import android.os.Bundle;
 import android.provider.MediaStore;
 import android.util.Log;
 import android.view.View;
-import android.widget.Button;
 import android.widget.ImageView;
 import android.widget.ProgressBar;
 import android.widget.TextView;
@@ -92,34 +91,12 @@ public class MainActivity extends AppCompatActivity {
         findViewById(R.id.btnPlay).setOnClickListener(v -> ttsManager.speak(textOutput.getText().toString()));
         findViewById(R.id.btnPause).setOnClickListener(v -> ttsManager.pause());
         findViewById(R.id.btnStop).setOnClickListener(v -> ttsManager.stop());
-        // Pulsante per selezionare un'immagine
         findViewById(R.id.btnPickImage).setOnClickListener(v -> pickImageFromGallery());
 
-
-        // Pulsante per impostazioni (rotellina)
         findViewById(R.id.btnSettings).setOnClickListener(v -> {
             Intent intent = new Intent(MainActivity.this, SettingsActivity.class);
             startActivity(intent);
         });
-
-        // Pulsante per scaricare l'audio
-        Button btnDownloadAudio = findViewById(R.id.btnDownloadAudio);
-        btnDownloadAudio.setOnClickListener(v -> {
-            String text = textOutput.getText().toString();
-            if (!text.isEmpty()) {
-                ttsManager.saveAudioFile(text);
-                Toast.makeText(MainActivity.this, "Audio salvato!", Toast.LENGTH_SHORT).show();
-            } else {
-                Toast.makeText(MainActivity.this, "Nessun testo da salvare!", Toast.LENGTH_SHORT).show();
-            }
-        });
-
-        // Pulsante per aprire la libreria audio
-        findViewById(R.id.btnLibrary).setOnClickListener(v -> {
-            Intent intent = new Intent(MainActivity.this, AudioLibraryActivity.class);
-            startActivity(intent);
-        });
-
     }
 
     /** Metodo per aprire la galleria */
@@ -128,9 +105,6 @@ public class MainActivity extends AppCompatActivity {
         intent.setType("image/*");
         pickImageLauncher.launch(intent);
     }
-
-
-
 
     /** Activity Result API per la selezione dell'immagine */
     private final ActivityResultLauncher<Intent> pickImageLauncher = registerForActivityResult(
@@ -202,7 +176,6 @@ public class MainActivity extends AppCompatActivity {
                 }
             });
 
-    /** Richiede il permesso di accesso alla galleria */
     private void requestStoragePermission() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {  // Android 13+
             requestPermissionLauncher.launch(Manifest.permission.READ_MEDIA_IMAGES);
