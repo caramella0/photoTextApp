@@ -1,7 +1,9 @@
 package com.phototext.ui;
 
+import android.content.Intent;
 import android.content.SharedPreferences;
 import android.os.Bundle;
+import android.util.Log;
 import android.widget.Button;
 import android.widget.RadioButton;
 import android.widget.RadioGroup;
@@ -26,22 +28,29 @@ public class SettingsActivity extends AppCompatActivity {
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
-        super.onCreate(savedInstanceState);
-
-        // Inizializza SharedPreferences e applica il tema prima di caricare il layout
+        // Inizializza SharedPreferences e applica il tema prima di creare l'Activity
         preferences = getSharedPreferences("AppSettings", MODE_PRIVATE);
         applySavedTheme();
 
+        super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_settings);
-        ttsManager = new TextToSpeechManager(this);
 
-        // Inizializza componenti UI
+        // Inizializza i componenti UI
         initViews();
         loadSettings();
 
         // Gestisce il pulsante "Applica Modifiche"
         Button btnApplySettings = findViewById(R.id.btnApplySettings);
         btnApplySettings.setOnClickListener(v -> applySettings());
+    }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+        Log.d("SettingsActivity", "onResume() chiamato");
+
+        // Inizializza TextToSpeechManager in onResume() per evitare problemi con recreate()
+        ttsManager = new TextToSpeechManager(this);
     }
 
     /** Inizializza i componenti UI */
@@ -77,7 +86,7 @@ public class SettingsActivity extends AppCompatActivity {
         speedValue.setText(String.format(Locale.US, "Velocità: %.1f", savedSpeed));
     }
 
-    /** Salva le impostazioni e riavvia l'activity */
+    /** Salva le impostazioni e riavvia l'activity in modo sicuro */
     private void applySettings() {
         SharedPreferences.Editor editor = preferences.edit();
 
@@ -97,15 +106,24 @@ public class SettingsActivity extends AppCompatActivity {
         editor.apply();
 
         // Applica modifiche al TextToSpeechManager
-        ttsManager.saveSettings(pitch, speed, selectedVoice);
+        if (ttsManager != null) {
+            ttsManager.saveSettings(pitch, speed, selectedVoice);
+        }
 
         Toast.makeText(this, "Impostazioni aggiornate!", Toast.LENGTH_SHORT).show();
 
-        // Riavvia l'activity per applicare il nuovo tema
-        recreate();
+        // Riavvia l'Activity in modo sicuro
+        restartActivity();
     }
 
-    /** Applica il tema salvato */
+    /** Riavvia l'activity senza usare recreate() */
+    private void restartActivity() {
+        Intent intent = getIntent();
+        finish();
+        startActivity(intent);
+    }
+
+    /** Applica il tema salvato PRIMA di creare l'Activity */
     private void applySavedTheme() {
         boolean isDarkTheme = preferences.getBoolean("isDarkTheme", false);
         AppCompatDelegate.setDefaultNightMode(

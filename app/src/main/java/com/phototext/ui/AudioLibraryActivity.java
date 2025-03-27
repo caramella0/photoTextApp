@@ -2,22 +2,22 @@ package com.phototext.ui;
 
 import android.content.Intent;
 import android.media.MediaPlayer;
+import android.net.Uri;
 import android.os.Bundle;
-import android.os.Environment;
-import android.view.View;
-import android.widget.AdapterView;
-import android.widget.ArrayAdapter;
 import android.widget.ListView;
 import android.widget.Toast;
+
 import androidx.appcompat.app.AppCompatActivity;
+
 import com.phototext.R;
+import com.phototext.utils.AudioFileManager;
+
 import java.io.File;
-import java.util.ArrayList;
+import java.util.List;
 
 public class AudioLibraryActivity extends AppCompatActivity {
-    private ListView listView;
-    private ArrayList<String> audioFiles;
-    private ArrayAdapter<String> adapter;
+    private ListView audioListView;
+    private AudioFileManager audioFileManager;
     private MediaPlayer mediaPlayer;
 
     @Override
@@ -25,41 +25,49 @@ public class AudioLibraryActivity extends AppCompatActivity {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_audio_library);
 
-        listView = findViewById(R.id.audioListView);
-        audioFiles = new ArrayList<>();
+        audioListView = findViewById(R.id.audioListView);
+        audioFileManager = new AudioFileManager(this);
 
+        // Carica e mostra la lista dei file audio
         loadAudioFiles();
-
-        adapter = new ArrayAdapter<>(this, android.R.layout.simple_list_item_1, audioFiles);
-        listView.setAdapter(adapter);
-
-        listView.setOnItemClickListener((parent, view, position, id) -> playAudio(audioFiles.get(position)));
     }
 
     private void loadAudioFiles() {
-        File audioDir = new File(getExternalFilesDir(Environment.DIRECTORY_MUSIC), "AudioEstratti");
-        if (audioDir.exists()) {
-            File[] files = audioDir.listFiles();
-            if (files != null) {
-                for (File file : files) {
-                    audioFiles.add(file.getAbsolutePath());
-                }
-            }
+        List<File> audioFiles = audioFileManager.getAudioFiles();
+        if (audioFiles.isEmpty()) {
+            Toast.makeText(this, "Nessuna traccia audio trovata", Toast.LENGTH_SHORT).show();
+        } else {
+            AudioListAdapter adapter = new AudioListAdapter(this, audioFiles);
+            audioListView.setAdapter(adapter);
         }
     }
 
-    private void playAudio(String filePath) {
+    /** Avvia la riproduzione di un file audio */
+    public void playAudio(File audioFile) {
         if (mediaPlayer != null) {
             mediaPlayer.release();
         }
-        mediaPlayer = new MediaPlayer();
-        try {
-            mediaPlayer.setDataSource(filePath);
-            mediaPlayer.prepare();
-            mediaPlayer.start();
-            Toast.makeText(this, "Riproduzione: " + filePath, Toast.LENGTH_SHORT).show();
-        } catch (Exception e) {
-            Toast.makeText(this, "Errore nella riproduzione", Toast.LENGTH_SHORT).show();
+        mediaPlayer = MediaPlayer.create(this, Uri.fromFile(audioFile));
+        mediaPlayer.start();
+        Toast.makeText(this, "Riproduzione: " + audioFile.getName(), Toast.LENGTH_SHORT).show();
+    }
+
+    /** Elimina un file audio */
+    public void deleteAudio(File audioFile) {
+        if (audioFileManager.deleteAudioFile(audioFile)) {
+            Toast.makeText(this, "Traccia eliminata", Toast.LENGTH_SHORT).show();
+            loadAudioFiles();
+        } else {
+            Toast.makeText(this, "Errore nell'eliminazione", Toast.LENGTH_SHORT).show();
         }
+    }
+
+    /** Condivide un file audio */
+    public void shareAudio(File audioFile) {
+        Intent shareIntent = new Intent(Intent.ACTION_SEND);
+        shareIntent.setType("audio/*");
+        Uri fileUri = Uri.fromFile(audioFile);
+        shareIntent.putExtra(Intent.EXTRA_STREAM, fileUri);
+        startActivity(Intent.createChooser(shareIntent, "Condividi audio"));
     }
 }

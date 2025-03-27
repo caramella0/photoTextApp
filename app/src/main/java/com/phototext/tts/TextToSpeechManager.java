@@ -44,6 +44,8 @@ public class TextToSpeechManager {
         pitch = preferences.getFloat("pitch", 1.0f);
         speed = preferences.getFloat("speed", 1.0f);
         voiceGender = preferences.getString("voiceGender", "male");
+
+        Log.d("TextToSpeechManager", "il genere selezionato è:" + voiceGender);
     }
 
     /** Salva le impostazioni e le applica immediatamente */
