@@ -6,160 +6,223 @@
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:background="#121212"
-    tools:context="com.phototext.ui.MainActivity">
+    tools:context=".ui.MainActivity">
 
-    <ProgressBar
-        android:id="@+id/progressBar"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:visibility="gone"
-        style="@android:style/Widget.Material.ProgressBar.Large"
-        app:layout_constraintTop_toBottomOf="@id/btnExtractText"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintEnd_toEndOf="parent"
-        android:layout_marginTop="16dp"/>
-
-    <!-- Pulsante impostazioni (rotellina) -->
+    <!-- Settings Button -->
     <ImageButton
         android:id="@+id/btnSettings"
         android:layout_width="48dp"
         android:layout_height="48dp"
         android:src="@drawable/ic_settings"
         android:background="?attr/selectableItemBackgroundBorderless"
-        app:tint="#FFFFFF"
         app:layout_constraintTop_toTopOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
+        android:layout_margin="16dp"
+        app:tint="#FFFFFF" />
+
+
+    <!-- Image Preview -->
+    <ImageButton
+        android:id="@+id/btnAudioLibrary"
+        android:layout_width="48dp"
+        android:layout_height="48dp"
         android:layout_marginTop="16dp"
-        android:layout_marginEnd="16dp"/>
+        android:layout_marginEnd="8dp"
+        android:background="?attr/selectableItemBackgroundBorderless"
+        android:contentDescription="@string/audio_library"
+        android:src="@drawable/ic_library"
+        app:layout_constraintEnd_toStartOf="@id/btnSettings"
+        app:layout_constraintTop_toTopOf="parent"
+        app:tint="#FFFFFF" />
 
+    <!-- Audio Library Button -->
+    <ImageButton
+        android:id="@+id/btnModText"
+        android:layout_width="48dp"
+        android:layout_height="48dp"
+        android:layout_marginTop="16dp"
+        android:layout_marginEnd="8dp"
+        android:background="?attr/selectableItemBackgroundBorderless"
+        android:contentDescription="@string/text_mod"
+        android:src="@drawable/ic_text_mod"
+        app:layout_constraintEnd_toStartOf="@+id/btnAudioLibrary"
+        app:layout_constraintTop_toTopOf="parent"
+        app:tint="#FFFFFF" />
 
-
-    <!-- Layout per i pulsanti Scatta Foto e Carica Immagine -->
-
-    <!-- Pulsante per estrarre il testo -->
-    <!-- Area di visualizzazione dell'immagine -->
     <ImageView
         android:id="@+id/imagePreview"
-        android:layout_width="350dp"
-        android:layout_height="230dp"
-        android:layout_marginHorizontal="32dp"
-        android:layout_marginTop="68dp"
+        android:layout_width="0dp"
+        android:layout_height="200dp"
+        android:layout_marginStart="16dp"
+        android:layout_marginTop="16dp"
+        android:layout_marginEnd="16dp"
         android:adjustViewBounds="true"
-        android:background="#222222"
+        android:background="#1E1E1E"
         android:scaleType="centerInside"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toTopOf="parent" />
+        app:layout_constraintTop_toBottomOf="@id/btnSettings" />
 
+    <!-- Capture Buttons -->
     <LinearLayout
         android:id="@+id/linearLayout"
         android:layout_width="0dp"
         android:layout_height="wrap_content"
-        android:layout_marginHorizontal="32dp"
+        android:layout_marginHorizontal="16dp"
+        android:layout_marginTop="16dp"
         android:gravity="center"
         android:orientation="horizontal"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@+id/imagePreview">
+        app:layout_constraintTop_toBottomOf="@id/imagePreview">
 
-        <!-- Pulsante per scattare una foto -->
-
-        <!-- Pulsante per caricare un'immagine -->
         <Button
             android:id="@+id/btnCapture"
             android:layout_width="0dp"
-            android:layout_height="wrap_content"
+            android:layout_height="48dp"
             android:layout_marginEnd="8dp"
             android:layout_weight="1"
             android:backgroundTint="#1E88E5"
-            android:text="Scatta Foto"
-            android:textColor="#FFFFFF" />
+            android:text="@string/capture"
+            android:textColor="#FFFFFF"
+            android:textAllCaps="false"
+            android:elevation="4dp"/>
 
         <Button
             android:id="@+id/btnPickImage"
             android:layout_width="0dp"
-            android:layout_height="wrap_content"
+            android:layout_height="48dp"
             android:layout_weight="1"
             android:backgroundTint="#673AB7"
-            android:text="Carica Immagine"
-            android:textColor="#FFFFFF" />
-
+            android:text="@string/load_image"
+            android:textColor="#FFFFFF"
+            android:textAllCaps="false"
+            android:elevation="4dp"/>
     </LinearLayout>
 
-    <!-- Box di testo con ScrollView -->
-
-    <!-- Controlli per la sintesi vocale -->
-
+    <!-- Extract Text Button -->
     <Button
         android:id="@+id/btnExtractText"
         android:layout_width="0dp"
-        android:layout_height="wrap_content"
-        android:layout_marginHorizontal="32dp"
+        android:layout_height="48dp"
+        android:layout_marginHorizontal="16dp"
+        android:layout_marginTop="16dp"
         android:backgroundTint="#FF9800"
-        android:text="Estrai Testo"
+        android:text="@string/extract_text"
         android:textColor="#FFFFFF"
+        android:textAllCaps="false"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@+id/linearLayout" />
+        app:layout_constraintTop_toBottomOf="@id/linearLayout"
+        android:elevation="4dp"/>
 
-    <ScrollView
+    <!-- Progress Bar -->
+    <ProgressBar
+        android:id="@+id/progressBar"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:visibility="gone"
+        style="@style/Widget.AppCompat.ProgressBar"
+        app:layout_constraintTop_toBottomOf="@id/btnExtractText"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        android:layout_marginTop="16dp"/>
+
+    <androidx.core.widget.NestedScrollView
         android:id="@+id/scrollTextOutput"
         android:layout_width="0dp"
         android:layout_height="200dp"
-        android:layout_marginHorizontal="32dp"
+        android:layout_marginHorizontal="16dp"
+        android:layout_marginTop="16dp"
+        android:background="#1E1E1E"
         android:fillViewport="true"
         app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintHorizontal_bias="0.75"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@+id/btnExtractText">
+        app:layout_constraintTop_toBottomOf="@id/progressBar">
 
-        <TextView
+        <EditText
             android:id="@+id/textOutput"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:background="#222222"
-            android:padding="8dp"
-            android:text="Qui verrà mostrato il testo estratto..."
+            android:padding="16dp"
+            android:text="@string/text_output_hint"
             android:textColor="#E0E0E0"
-            android:textSize="18sp" />
-    </ScrollView>
+            android:textSize="16sp"
+            android:background="@null"
+            android:inputType="none"
+            android:focusable="false"
+            android:focusableInTouchMode="false"
+            android:cursorVisible="false"
+            android:longClickable="false"
+            android:textIsSelectable="false"/>
+    </androidx.core.widget.NestedScrollView>
 
+    <!-- Download Audio Button (NEW) -->
+    <Button
+        android:id="@+id/btnDownloadAudio"
+        android:layout_width="0dp"
+        android:layout_height="48dp"
+        android:layout_marginHorizontal="16dp"
+        android:layout_marginTop="16dp"
+        android:backgroundTint="#009688"
+        android:text="@string/download_audio"
+        android:textColor="#FFFFFF"
+        android:textAllCaps="false"
+        android:drawableStart="@drawable/ic_download"
+        android:drawablePadding="8dp"
+        android:drawableTint="#FFFFFF"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@id/scrollTextOutput"
+        android:elevation="4dp"/>
+
+    <!-- TTS Controls -->
     <LinearLayout
         android:layout_width="0dp"
         android:layout_height="wrap_content"
-        android:layout_marginHorizontal="32dp"
+        android:layout_marginHorizontal="16dp"
+        android:layout_marginTop="16dp"
+        android:layout_marginBottom="16dp"
         android:gravity="center"
         android:orientation="horizontal"
+        app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintHorizontal_bias="0.25"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@+id/scrollTextOutput">
+        app:layout_constraintTop_toBottomOf="@id/btnDownloadAudio">
 
         <Button
             android:id="@+id/btnPlay"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginEnd="16dp"
+            android:layout_width="0dp"
+            android:layout_height="48dp"
+            android:layout_weight="1"
+            android:layout_marginEnd="8dp"
             android:backgroundTint="#4CAF50"
-            android:text="▶️"
-            android:textColor="#FFFFFF" />
+            android:text="@string/play"
+            android:textColor="#FFFFFF"
+            android:textAllCaps="false"
+            android:elevation="4dp"/>
 
         <Button
             android:id="@+id/btnPause"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginEnd="16dp"
+            android:layout_width="0dp"
+            android:layout_height="48dp"
+            android:layout_weight="1"
+            android:layout_marginEnd="8dp"
             android:backgroundTint="#FFC107"
-            android:text="⏸️"
-            android:textColor="#FFFFFF" />
+            android:text="@string/pause"
+            android:textColor="#FFFFFF"
+            android:textAllCaps="false"
+            android:elevation="4dp"/>
 
         <Button
             android:id="@+id/btnStop"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
+            android:layout_width="0dp"
+            android:layout_height="48dp"
+            android:layout_weight="1"
             android:backgroundTint="#F44336"
-            android:text="⏹️"
-            android:textColor="#FFFFFF" />
+            android:text="@string/stop"
+            android:textColor="#FFFFFF"
+            android:textAllCaps="false"
+            android:elevation="4dp"/>
     </LinearLayout>
-
 </androidx.constraintlayout.widget.ConstraintLayout>

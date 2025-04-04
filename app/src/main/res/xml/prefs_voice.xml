@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<PreferenceScreen xmlns:android="http://schemas.android.com/apk/res/android">
+    <PreferenceCategory android:title="Impostazioni voce">
+        <ListPreference
+            android:key="voiceGender"
+            android:title="Genere voce"
+            android:entries="@array/gender_entries"
+            android:entryValues="@array/gender_values"
+            android:defaultValue="female"/>
+        <SeekBarPreference
+            android:key="pitch"
+            android:title="Tonalità"
+            android:max="200"
+            android:defaultValue="100"/>
+        <SeekBarPreference
+            android:key="speed"
+            android:title="Velocità"
+            android:max="200"
+            android:defaultValue="100"/>
+    </PreferenceCategory>
+</PreferenceScreen>

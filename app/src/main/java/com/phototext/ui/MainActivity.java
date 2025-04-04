@@ -4,6 +4,7 @@ import android.Manifest;
 import android.app.Activity;
 import android.content.Intent;
 import android.content.SharedPreferences;
+import android.content.pm.PackageManager;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.graphics.ImageDecoder;
@@ -23,6 +24,7 @@ import androidx.activity.result.contract.ActivityResultContracts;
 import androidx.annotation.RequiresApi;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.appcompat.app.AppCompatDelegate;
+import androidx.core.content.ContextCompat;
 
 import com.google.mlkit.vision.common.InputImage;
 import com.google.mlkit.vision.text.TextRecognition;
@@ -36,55 +38,85 @@ import com.phototext.tts.TextToSpeechManager;
 import java.io.IOException;
 
 public class MainActivity extends AppCompatActivity {
+    private static final int REQUEST_EDIT_TEXT = 1;
     private TextView textOutput;
     private ImageView imagePreview;
     private CameraManager cameraManager;
     private OCRManager ocrManager;
     private TextToSpeechManager ttsManager;
+    private ActivityResultLauncher<String> requestPermissionLauncher;
+    private ActivityResultLauncher<Intent> pickImageLauncher;
+    private SharedPreferences sharedPreferences;
 
     @RequiresApi(api = Build.VERSION_CODES.TIRAMISU)
-
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        super.onResume();
 
-        SharedPreferences preferences = getSharedPreferences("AppSettings", MODE_PRIVATE);
-        boolean isDarkTheme = preferences.getBoolean("isDarkTheme", false);
-        AppCompatDelegate.setDefaultNightMode(
-                isDarkTheme ? AppCompatDelegate.MODE_NIGHT_YES : AppCompatDelegate.MODE_NIGHT_NO
-        );
-
+        sharedPreferences = getSharedPreferences("AppSettings", MODE_PRIVATE);
         setContentView(R.layout.activity_main);
 
+        applyTheme();
+        initPermissionLaunchers();
         initViews();
         initManagers();
         setupListeners();
-        requestStoragePermission();
+        checkPermissions();
     }
 
-    // Applica le nuove impostazioni della voce quando si torna in MainActivity
+    private void initPermissionLaunchers() {
+        requestPermissionLauncher = registerForActivityResult(
+                new ActivityResultContracts.RequestPermission(),
+                isGranted -> {
+                    if (isGranted) {
+                        Toast.makeText(this, "Permesso concesso", Toast.LENGTH_SHORT).show();
+                    } else {
+                        Toast.makeText(this, "Permesso negato", Toast.LENGTH_SHORT).show();
+                    }
+                });
+
+        pickImageLauncher = registerForActivityResult(
+                new ActivityResultContracts.StartActivityForResult(),
+                result -> {
+                    if (result.getResultCode() == Activity.RESULT_OK && result.getData() != null) {
+                        Uri selectedImageUri = result.getData().getData();
+                        if (selectedImageUri != null) {
+                            imagePreview.setImageURI(selectedImageUri);
+                            processSelectedImage(selectedImageUri);
+                        }
+                    }
+                });
+    }
+
+    private void applyTheme() {
+        boolean isDarkTheme = sharedPreferences.getBoolean("isDarkTheme", false);
+        AppCompatDelegate.setDefaultNightMode(
+                isDarkTheme ? AppCompatDelegate.MODE_NIGHT_YES : AppCompatDelegate.MODE_NIGHT_NO
+        );
+    }
+
     @Override
     protected void onResume() {
         super.onResume();
+        applyTheme();
+
         if (ttsManager != null) {
-            ttsManager.applySettings(); // 🔹 Aggiorna la voce senza interrompere la riproduzione
+            ttsManager.loadSettings();
         }
     }
 
-    /** Inizializza gli elementi UI */
     private void initViews() {
         imagePreview = findViewById(R.id.imagePreview);
         textOutput = findViewById(R.id.textOutput);
     }
 
-    /** Inizializza i gestori delle funzionalità */
     private void initManagers() {
         cameraManager = new CameraManager(this, imagePreview);
         ocrManager = new OCRManager(this, textOutput);
         ttsManager = new TextToSpeechManager(this);
     }
 
-    /** Imposta i listener per i pulsanti */
     private void setupListeners() {
         findViewById(R.id.btnCapture).setOnClickListener(v -> cameraManager.openCamera());
         findViewById(R.id.btnExtractText).setOnClickListener(v -> ocrManager.extractText(cameraManager.getCapturedImage()));
@@ -93,49 +125,125 @@ public class MainActivity extends AppCompatActivity {
         findViewById(R.id.btnStop).setOnClickListener(v -> ttsManager.stop());
         findViewById(R.id.btnPickImage).setOnClickListener(v -> pickImageFromGallery());
 
+        findViewById(R.id.btnAudioLibrary).setOnClickListener(v -> {
+            startActivity(new Intent(MainActivity.this, AudioLibraryActivity.class));
+        });
+
+        findViewById(R.id.btnExtractText).setOnClickListener(v -> {
+            Bitmap image = cameraManager.getCapturedImage();
+            if (image != null) {
+                showProgress(true); // Mostra la barra di caricamento
+                extractTextFromBitmap(image);
+            } else {
+                Toast.makeText(this, "Nessuna immagine da elaborare", Toast.LENGTH_SHORT).show();
+            }
+        });
+
+        findViewById(R.id.btnModText).setOnClickListener(v -> {
+            String currentText = textOutput.getText().toString();
+            if (!currentText.isEmpty()) {
+                Intent intent = new Intent(MainActivity.this, TextEditActivity.class);
+                intent.putExtra(TextEditActivity.EXTRA_TEXT, currentText);
+                startActivityForResult(intent, REQUEST_EDIT_TEXT);
+            } else {
+                Toast.makeText(this, "Nessun testo da modificare", Toast.LENGTH_SHORT).show();
+            }
+        });
+
+        findViewById(R.id.btnDownloadAudio).setOnClickListener(v -> {
+            String text = textOutput.getText().toString();
+            if (!text.isEmpty()) {
+                String filename = "audio_" + System.currentTimeMillis() + ".wav";
+                ttsManager.saveAudioToFile(text, filename);
+                Toast.makeText(this, "Audio salvato come " + filename, Toast.LENGTH_SHORT).show();
+            } else {
+                Toast.makeText(this, "Nessun testo da convertire", Toast.LENGTH_SHORT).show();
+            }
+        });
+
         findViewById(R.id.btnSettings).setOnClickListener(v -> {
-            Intent intent = new Intent(MainActivity.this, SettingsActivity.class);
-            startActivity(intent);
+            startActivity(new Intent(MainActivity.this, SettingsActivity.class));
         });
     }
+    // Aggiungi questo metodo per gestire la visibilità della progress bar
+    private void showProgress(boolean show) {
+        runOnUiThread(() -> {
+            ProgressBar progressBar = findViewById(R.id.progressBar);
+            if (progressBar != null) {
+                progressBar.setVisibility(show ? View.VISIBLE : View.GONE);
+            }
 
-    /** Metodo per aprire la galleria */
+            // Disabilita i pulsanti durante l'elaborazione
+            setButtonsEnabled(!show);
+        });
+    }
+    private void checkPermissions() {
+        // Controlla permessi per l'audio
+        if (ContextCompat.checkSelfPermission(this,
+                Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
+            requestPermissionLauncher.launch(Manifest.permission.RECORD_AUDIO);
+        }
+
+        // Controlla permessi per lo storage
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            if (ContextCompat.checkSelfPermission(this,
+                    Manifest.permission.READ_MEDIA_AUDIO) != PackageManager.PERMISSION_GRANTED) {
+                requestPermissionLauncher.launch(Manifest.permission.READ_MEDIA_AUDIO);
+            }
+        } else {
+            if (ContextCompat.checkSelfPermission(this,
+                    Manifest.permission.READ_EXTERNAL_STORAGE) != PackageManager.PERMISSION_GRANTED) {
+                requestPermissionLauncher.launch(Manifest.permission.READ_EXTERNAL_STORAGE);
+            }
+        }
+    }
+
     private void pickImageFromGallery() {
+        showProgress(true); // Mostra subito la barra
         Intent intent = new Intent(Intent.ACTION_PICK, MediaStore.Images.Media.EXTERNAL_CONTENT_URI);
         intent.setType("image/*");
         pickImageLauncher.launch(intent);
     }
 
-    /** Activity Result API per la selezione dell'immagine */
-    private final ActivityResultLauncher<Intent> pickImageLauncher = registerForActivityResult(
-            new ActivityResultContracts.StartActivityForResult(),
-            result -> {
-                if (result.getResultCode() == Activity.RESULT_OK && result.getData() != null) {
-                    Uri selectedImageUri = result.getData().getData();
-                    if (selectedImageUri != null) {
-                        imagePreview.setImageURI(selectedImageUri);
-                        processSelectedImage(selectedImageUri);
-                    }
-                }
-            }
-    );
 
-    /** Converte un Uri in Bitmap e avvia l'estrazione del testo */
-    private void processSelectedImage(Uri imageUri) {
-        Bitmap bitmap = uriToBitmap(imageUri);
-        if (bitmap != null) {
-            extractTextFromBitmap(bitmap);
-        } else {
-            Toast.makeText(this, "Errore nel caricamento dell'immagine", Toast.LENGTH_SHORT).show();
+    @Override
+    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+        super.onActivityResult(requestCode, resultCode, data);
+
+        if (requestCode == REQUEST_EDIT_TEXT && resultCode == RESULT_OK) {
+            String modifiedText = data.getStringExtra(TextEditActivity.RESULT_TEXT);
+            textOutput.setText(modifiedText);
+
+            // Opzionale: salva automaticamente il testo modificato
+            saveModifiedText(modifiedText);
         }
     }
 
-    /** Converte un Uri in Bitmap */
+    private void saveModifiedText(String text) {
+        // Implementa il salvataggio permanente se necessario
+    }
+    private void processSelectedImage(Uri imageUri) {
+        new Thread(() -> {
+            try {
+                Bitmap bitmap = uriToBitmap(imageUri);
+                runOnUiThread(() -> {
+                    imagePreview.setImageURI(imageUri);
+                    extractTextFromBitmap(bitmap);
+                });
+            } catch (Exception e) {
+                runOnUiThread(() -> {
+                    showProgress(false);
+                    Toast.makeText(this, "Errore nel caricamento", Toast.LENGTH_SHORT).show();
+                });
+            }
+        }).start();
+    }
+
     private Bitmap uriToBitmap(Uri uri) {
         try {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) { // Android 9 (Pie) e successivi
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
                 return ImageDecoder.decodeBitmap(ImageDecoder.createSource(getContentResolver(), uri));
-            } else { // Versioni precedenti
+            } else {
                 return BitmapFactory.decodeStream(getContentResolver().openInputStream(uri));
             }
         } catch (IOException e) {
@@ -144,11 +252,8 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
-
-    /** Estrae il testo da un Bitmap */
     private void extractTextFromBitmap(Bitmap bitmap) {
-        ProgressBar progressBar = findViewById(R.id.progressBar);
-        runOnUiThread(() -> progressBar.setVisibility(View.VISIBLE)); // Mostra la ProgressBar
+        showProgress(true); // Mostra la barra
 
         new Thread(() -> {
             TextRecognizer recognizer = TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS);
@@ -157,36 +262,27 @@ public class MainActivity extends AppCompatActivity {
             recognizer.process(image)
                     .addOnSuccessListener(visionText -> runOnUiThread(() -> {
                         textOutput.setText(visionText.getText());
-                        progressBar.setVisibility(View.GONE); // Nasconde la ProgressBar dopo il completamento
+                        showProgress(false);
                     }))
                     .addOnFailureListener(e -> runOnUiThread(() -> {
-                        Log.e("OCR", "Errore nel riconoscimento del testo", e);
-                        Toast.makeText(MainActivity.this, "Errore nell'estrazione del testo", Toast.LENGTH_SHORT).show();
-                        progressBar.setVisibility(View.GONE); // Nasconde la ProgressBar anche in caso di errore
+                        showProgress(false);
+                        Toast.makeText(this, "Estrazione fallita", Toast.LENGTH_SHORT).show();
                     }));
         }).start();
     }
 
-
-    /** Gestione dei permessi per l'accesso alla galleria */
-    private final ActivityResultLauncher<String> requestPermissionLauncher =
-            registerForActivityResult(new ActivityResultContracts.RequestPermission(), isGranted -> {
-                if (!isGranted) {
-                    Toast.makeText(this, "Permesso necessario per selezionare immagini", Toast.LENGTH_SHORT).show();
-                }
-            });
-
-    private void requestStoragePermission() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {  // Android 13+
-            requestPermissionLauncher.launch(Manifest.permission.READ_MEDIA_IMAGES);
-        } else {
-            requestPermissionLauncher.launch(Manifest.permission.READ_EXTERNAL_STORAGE);
-        }
+    private void setButtonsEnabled(boolean enabled) {
+        findViewById(R.id.btnExtractText).setEnabled(enabled);
+        findViewById(R.id.btnPickImage).setEnabled(enabled);
+        findViewById(R.id.btnCapture).setEnabled(enabled);
     }
+
 
     @Override
     protected void onDestroy() {
         super.onDestroy();
-        ttsManager.shutdown();
+        if (ttsManager != null) {
+            ttsManager.shutdown();
+        }
     }
 }

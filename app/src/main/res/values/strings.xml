@@ -1,3 +1,30 @@
 <resources>
     <string name="app_name">PhotoText</string>
+    <string name="delete" translatable="false" />
+    <string name="play" translatable="false">Play</string>
+    <string name="pause" translatable="false">Pausa</string>
+    <string name="stop" translatable="false">Stop</string>
+    <string name="text_output_hint" translatable="false">\"Qui verrà mostrato il testo estratto...\"</string>
+    <string name="extract_text" translatable="false">Estrai Testo</string>
+    <string name="capture" translatable="false">Scatta Foto</string>
+    <string name="load_image" translatable="false">Carica Immagine</string>
+    <string name="audio_library_title" translatable="false">Lista File Audio</string>
+    <string name="share" translatable="false">Condividi</string>
+    <string name="voice_settings" translatable="false">Impostazioni</string>
+    <string name="pitch_default" translatable="false">Tonalità</string>
+    <string name="speed_default" translatable="false">Velocità</string>
+    <string name="voice_gender" translatable="false">Genere della Voce</string>
+    <string name="male" translatable="false">Maschio</string>
+    <string name="female" translatable="false">Femmina</string>
+    <string name="theme_settings" translatable="false">Imposta Tema</string>
+    <string name="light_theme" translatable="false">Tema Chiaro</string>
+    <string name="dark_theme" translatable="false">Tema Scuro</string>
+    <string name="apply_changes" translatable="false">Salva impostazioni</string>
+    <string name="download_audio" translatable="false">Scarica Audio</string>
+    <string name="settings" translatable="false">Impostazioni</string>
+    <string name="audio_library" translatable="false">Audio Library</string>
+
+    <string name="text_mod" translatable="false">Modifica testo</string>
+    <string name="save" translatable="false">Salva</string>
+    <string name="modified_text_saved" translatable="false">Testo modificato salvato</string>
 </resources>

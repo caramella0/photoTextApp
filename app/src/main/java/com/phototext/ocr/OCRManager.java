@@ -10,6 +10,8 @@ import com.google.mlkit.vision.text.TextRecognition;
 import com.google.mlkit.vision.text.TextRecognizer;
 import com.google.mlkit.vision.text.latin.TextRecognizerOptions;
 
+import java.util.Objects;
+
 public class OCRManager {
     private final TextRecognizer recognizer;
     private final TextView textView;
@@ -49,7 +51,7 @@ public class OCRManager {
     private Bitmap enhanceImage(Bitmap bitmap) {
         int width = bitmap.getWidth();
         int height = bitmap.getHeight();
-        Bitmap enhancedBitmap = Bitmap.createBitmap(width, height, bitmap.getConfig());
+        Bitmap enhancedBitmap = Bitmap.createBitmap(width, height, Objects.requireNonNull(bitmap.getConfig()));
 
         for (int x = 0; x < width; x++) {
             for (int y = 0; y < height; y++) {

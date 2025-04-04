@@ -1,4 +1,31 @@
 <?xml version="1.0" encoding="utf-8"?>
 <paths xmlns:android="http://schemas.android.com/apk/res/android">
-    <external-files-path name="images" path="Pictures"/>
+    <!-- Directory per i file audio -->
+    <external-files-path
+        name="audio_files"
+        path="Audio/" />
+
+    <!-- Directory per le immagini -->
+    <external-files-path
+        name="image_files"
+        path="Pictures/PhotoText/" />
+
+    <!-- Directory cache -->
+    <cache-path
+        name="cache_files"
+        path="/" />
+
+    <!-- Directory per la musica (backup compatibilità) -->
+    <external-files-path
+        name="legacy_audio_files"
+        path="Music/" />
+
+    <!-- Directory per i file temporanei -->
+    <external-cache-path
+        name="temp_files"
+        path="temp/" />
+
+    <external-files-path name="my_images" path="Pictures/" />
+    <external-files-path name="my_captured_images" path="." />
+
 </paths>

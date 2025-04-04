@@ -27,7 +27,7 @@ public class CameraManager {
     private final AppCompatActivity activity;
     private final ImageView imagePreview;
     private Bitmap capturedImage;
-    private String currentPhotoPath; // Percorso assoluto del file
+    private String currentPhotoPath;
     private final ActivityResultLauncher<Intent> cameraLauncher;
     private final ActivityResultLauncher<String> requestPermissionLauncher;
 
@@ -35,7 +35,6 @@ public class CameraManager {
         this.activity = activity;
         this.imagePreview = imagePreview;
 
-        // Registrazione del launcher per la fotocamera
         cameraLauncher = activity.registerForActivityResult(
                 new ActivityResultContracts.StartActivityForResult(),
                 result -> {
@@ -48,7 +47,6 @@ public class CameraManager {
                 }
         );
 
-        // Gestione richiesta permessi
         requestPermissionLauncher = activity.registerForActivityResult(
                 new ActivityResultContracts.RequestPermission(),
                 isGranted -> {
@@ -71,11 +69,13 @@ public class CameraManager {
                 try {
                     File photoFile = createImageFile();
                     Uri photoUri = FileProvider.getUriForFile(activity,
-                            activity.getApplicationContext().getPackageName() + ".provider", photoFile);
+                            activity.getPackageName() + ".provider", photoFile);
+                    takePictureIntent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
                     takePictureIntent.putExtra(MediaStore.EXTRA_OUTPUT, photoUri);
                     cameraLauncher.launch(takePictureIntent);
                 } catch (IOException e) {
                     Toast.makeText(activity, "Errore nella creazione del file", Toast.LENGTH_SHORT).show();
+                    Log.e("CameraManager", "Errore nella creazione del file", e);
                 }
             } else {
                 Toast.makeText(activity, "Nessuna app fotocamera disponibile", Toast.LENGTH_SHORT).show();
@@ -85,25 +85,37 @@ public class CameraManager {
 
     private File createImageFile() throws IOException {
         String timeStamp = new SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault()).format(new Date());
+        String imageFileName = "IMG_" + timeStamp + "_";
         File storageDir = activity.getExternalFilesDir(Environment.DIRECTORY_PICTURES);
-        File image = File.createTempFile("IMG_" + timeStamp, ".jpg", storageDir);
+        File image = File.createTempFile(
+                imageFileName,
+                ".jpg",
+                storageDir
+        );
 
-        // Salviamo il percorso per caricare l'immagine dopo
         currentPhotoPath = image.getAbsolutePath();
         Log.d("CameraManager", "File immagine creato: " + currentPhotoPath);
-
         return image;
     }
 
     private void loadCapturedImage() {
+        try {
+            // Aggiungi un piccolo ritardo per assicurarti che il file sia stato scritto
+            Thread.sleep(200);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        }
+
         File imgFile = new File(currentPhotoPath);
         if (imgFile.exists()) {
-            capturedImage = BitmapFactory.decodeFile(currentPhotoPath);
+            BitmapFactory.Options options = new BitmapFactory.Options();
+            options.inSampleSize = 2; // Riduci la dimensione per evitare OutOfMemoryError
+            capturedImage = BitmapFactory.decodeFile(currentPhotoPath, options);
             imagePreview.setImageBitmap(capturedImage);
             Log.d("CameraManager", "Immagine caricata con successo.");
         } else {
-            Log.e("CameraManager", "Errore: Il file immagine non esiste. Attendere qualche secondo e riprovare.");
-            Toast.makeText(activity, "Caricamento immagine in corso, riprova tra poco.", Toast.LENGTH_SHORT).show();
+            Log.e("CameraManager", "Errore: Il file immagine non esiste: " + currentPhotoPath);
+            Toast.makeText(activity, "Errore nel caricamento dell'immagine", Toast.LENGTH_SHORT).show();
         }
     }
 

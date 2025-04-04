@@ -2,144 +2,116 @@ package com.phototext.tts;
 
 import android.content.Context;
 import android.content.SharedPreferences;
-import android.speech.tts.TextToSpeech;
-import android.speech.tts.Voice;
 import android.util.Log;
 
-import java.util.Locale;
-import java.util.Set;
-
-public class TextToSpeechManager {
-    private TextToSpeech textToSpeech;
-    private final Context context;
+public class TextToSpeechManager implements TTSProvider {
     private static final String TAG = "TextToSpeechManager";
-
-    private float pitch = 1.0f;
-    private float speed = 1.0f;
-    private String voiceGender = "male";
+    private final Context context;
+    private TTSProvider currentProvider;
+    private final SharedPreferences preferences;
+    private TTSListener listener;
 
     public TextToSpeechManager(Context context) {
         this.context = context;
-        loadSettings(); // Carica le impostazioni salvate
-        initTextToSpeech();
+        this.preferences = context.getSharedPreferences("VoiceSettings", Context.MODE_PRIVATE);
+        initTTSProvider();
     }
 
-    /** Inizializza il TextToSpeech */
-    private void initTextToSpeech() {
-        textToSpeech = new TextToSpeech(context, status -> {
-            if (status == TextToSpeech.SUCCESS) {
-                textToSpeech.setLanguage(Locale.getDefault());
-                applySettings(); // Applica le impostazioni salvate
-            } else {
-                Log.e(TAG, "Errore nell'inizializzazione di TextToSpeech.");
-            }
+    // Aggiungi il metodo initTTSProvider
+    private void initTTSProvider() {
+        try {
+            currentProvider = new GoogleTTSManager(context);
+            Log.d(TAG, "Using Google TTS provider");
+
+            // CARICA LE IMPOSTAZIONI SUBITO DOPO L'INIZIALIZZAZIONE
+            loadSettings();
+
+        } catch (Exception e) {
+            Log.w(TAG, "Google TTS not available, falling back to offline");
+            currentProvider = new OfflineTTSManager(context);
+            loadSettings();
+        }
+
+        currentProvider.setTtsListener(new TTSListener() {
+            @Override public void onStart() { if (listener != null) listener.onStart(); }
+            @Override public void onDone() { if (listener != null) listener.onDone(); }
+            @Override public void onError(String error) { if (listener != null) listener.onError(error); }
         });
     }
 
-    /** Carica le impostazioni salvate */
-    private void loadSettings() {
-        SharedPreferences preferences = context.getSharedPreferences("VoiceSettings", Context.MODE_PRIVATE);
-        pitch = preferences.getFloat("pitch", 1.0f);
-        speed = preferences.getFloat("speed", 1.0f);
-        voiceGender = preferences.getString("voiceGender", "male");
 
-        Log.d("TextToSpeechManager", "il genere selezionato è:" + voiceGender);
-    }
 
-    /** Salva le impostazioni e le applica immediatamente */
-    public void saveSettings(float newPitch, float newSpeed, String newGender) {
-        this.pitch = newPitch;
-        this.speed = newSpeed;
-        this.voiceGender = newGender;
-
-        SharedPreferences preferences = context.getSharedPreferences("VoiceSettings", Context.MODE_PRIVATE);
-        SharedPreferences.Editor editor = preferences.edit();
-        editor.putFloat("pitch", newPitch);
-        editor.putFloat("speed", newSpeed);
-        editor.putString("voiceGender", newGender);
-        editor.apply();
-
-        applySettings(); // Applica subito le nuove impostazioni
-    }
-
-    /** Applica le impostazioni attuali */
-    public void applySettings() {
-        SharedPreferences preferences = context.getSharedPreferences("VoiceSettings", Context.MODE_PRIVATE);
-        float newPitch = preferences.getFloat("pitch", 1.0f);
-        float newSpeed = preferences.getFloat("speed", 1.0f);
-        String newVoiceGender = preferences.getString("voiceGender", "male");
-
-        if (textToSpeech != null) {
-            textToSpeech.setPitch(newPitch);
-            textToSpeech.setSpeechRate(newSpeed);
-
-            Voice selectedVoice = getVoiceByGender(newVoiceGender);
-            if (selectedVoice != null && !selectedVoice.equals(textToSpeech.getVoice())) {
-                textToSpeech.setVoice(selectedVoice);
+    // Aggiungi il metodo saveAudioToFile
+    public void saveAudioToFile(String text, String filename) {
+        if (currentProvider instanceof GoogleTTSManager) {
+            ((GoogleTTSManager) currentProvider).saveAudioToFile(text, filename);
+        } else {
+            Log.w(TAG, "Audio saving not supported in offline mode");
+            if (listener != null) {
+                listener.onError("Salvataggio audio non supportato in modalità offline");
             }
         }
     }
+    // Aggiungi il metodo saveSettings
+    @Override
+    public void saveSettings(float pitch, float speed, String gender) {
+        Log.d(TAG, "Salvataggio impostazioni - Pitch: " + pitch +
+                ", Speed: " + speed + ", Gender: " + gender);
 
+        preferences.edit()
+                .putFloat("pitch", pitch)
+                .putFloat("speed", speed)
+                .putString("voiceGender", gender)
+                .apply();
 
-    /** Ottiene una voce maschile o femminile tra quelle disponibili */
-    private Voice getVoiceByGender(String gender) {
-        if (textToSpeech == null) return null;
-
-        Set<Voice> voices = textToSpeech.getVoices();
-        if (voices == null) return null;
-
-        for (Voice voice : voices) {
-            if (voice.getLocale().equals(Locale.getDefault())) {
-                boolean isFemale = voice.getName().toLowerCase().contains("female");
-                boolean isMale = voice.getName().toLowerCase().contains("male");
-
-                if ("female".equals(gender) && isFemale) return voice;
-                if ("male".equals(gender) && isMale) return voice;
-            }
-        }
-        return getDefaultVoice();
+        currentProvider.saveSettings(pitch, speed, gender);
     }
 
-    /** Restituisce una voce predefinita nel caso in cui non trovi quella richiesta */
-    private Voice getDefaultVoice() {
-        if (textToSpeech == null) return null;
-
-        Set<Voice> voices = textToSpeech.getVoices();
-        if (voices != null) {
-            for (Voice voice : voices) {
-                if (voice.getLocale().equals(Locale.getDefault())) {
-                    return voice;
-                }
-            }
-        }
-        return null;
+    // Aggiungi il metodo loadSettings
+    public void loadSettings() {
+        float pitch = preferences.getFloat("pitch", 1.0f);
+        float speed = preferences.getFloat("speed", 1.0f);
+        String gender = preferences.getString("voiceGender", "female");
+        currentProvider.saveSettings(pitch, speed, gender);
     }
 
-    /** Riproduce il testo */
+    @Override
     public void speak(String text) {
-        if (text == null || text.trim().isEmpty() || textToSpeech == null) return;
-        textToSpeech.speak(text, TextToSpeech.QUEUE_FLUSH, null, "TTS_ID");
+        currentProvider.speak(text);
     }
 
-    /** Ferma la lettura */
-    public void stop() {
-        if (textToSpeech != null) {
-            textToSpeech.stop();
-        }
-    }
-
-    /** Simula la pausa fermando la riproduzione */
+    @Override
     public void pause() {
-        if (textToSpeech != null && textToSpeech.isSpeaking()) {
-            textToSpeech.stop();
-        }
+        currentProvider.pause();
     }
 
-    /** Rilascia le risorse di TextToSpeech */
-    public void shutdown() {
-        if (textToSpeech != null) {
-            textToSpeech.stop();
-            textToSpeech.shutdown();
-        }
+    @Override
+    public void resume() {
+        currentProvider.resume();
     }
+
+    @Override
+    public void stop() {
+        currentProvider.stop();
+    }
+
+    @Override
+    public void shutdown() {
+        currentProvider.shutdown();
+    }
+    @Override
+    public void setLanguage(String languageCode) {
+        currentProvider.setLanguage(languageCode);
+    }
+
+    @Override
+    public boolean isSpeaking() {
+        return currentProvider.isSpeaking();
+    }
+
+    @Override
+    public void setTtsListener(TTSListener listener) {
+        this.listener = listener;
+    }
+
 }
