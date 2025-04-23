@@ -11,6 +11,8 @@ import android.graphics.ImageDecoder;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
+import android.os.Handler;
+import android.os.Looper;
 import android.provider.MediaStore;
 import android.util.Log;
 import android.view.View;
@@ -24,7 +26,6 @@ import androidx.activity.result.contract.ActivityResultContracts;
 import androidx.annotation.NonNull;
 import androidx.annotation.RequiresApi;
 import androidx.appcompat.app.AppCompatActivity;
-import androidx.appcompat.app.AppCompatDelegate;
 import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
 
@@ -37,47 +38,82 @@ import com.phototext.camera.CameraManager;
 import com.phototext.ocr.OCRManager;
 import com.phototext.tts.TextToSpeechManager;
 
+import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.concurrent.Executor;
+import java.util.concurrent.Executors;
 
 public class MainActivity extends AppCompatActivity implements OCRManager.OCRCallback {
-    private static final int REQUEST_EDIT_TEXT = 1;
     private static final String TAG = "MainActivity";
-
-    // Views
+    private static final int REQUEST_EDIT_TEXT = 1;
+    private static final String AUDIO_DIR = "PhotoText_Audios";
     private ImageView imagePreview;
     private TextView textOutput;
     private ProgressBar progressBar;
 
     // Managers
     private CameraManager cameraManager;
-    private OCRManager ocrManager;
+    public OCRManager ocrManager;
     private TextToSpeechManager ttsManager;
-    private static final int REQUEST_READ_STORAGE = 101;
+
+    // Executor per operazioni I/O
+    private final Executor executor = Executors.newSingleThreadExecutor();
 
     // Activity launchers
-    private ActivityResultLauncher<String> requestPermissionLauncher;
-    private ActivityResultLauncher<Intent> pickImageLauncher;
+    private final ActivityResultLauncher<String> requestPermissionLauncher = registerForActivityResult(
+            new ActivityResultContracts.RequestPermission(),
+            isGranted -> showMessage(isGranted ? "Permesso concesso" : "Permesso negato"));
 
-    // Shared preferences
-    private SharedPreferences sharedPreferences;
+    private final ActivityResultLauncher<Intent> pickImageLauncher = registerForActivityResult(
+            new ActivityResultContracts.StartActivityForResult(),
+            result -> {
+                if (result.getResultCode() == Activity.RESULT_OK) {
+                    Intent data = result.getData();
+                    if (data != null) {
+                        Uri selectedImageUri = data.getData();
+                        if (selectedImageUri != null) {
+                            processSelectedImage(selectedImageUri);
+                        } else {
+                            showMessage("Nessuna immagine selezionata");
+                        }
+                    }
+                }
+            });
 
-    @RequiresApi(api = Build.VERSION_CODES.TIRAMISU)
+    private final ActivityResultLauncher<Intent> editTextLauncher = registerForActivityResult(
+            new ActivityResultContracts.StartActivityForResult(),
+            result -> {
+                if (result.getResultCode() == RESULT_OK && result.getData() != null) {
+                    String modifiedText = result.getData().getStringExtra(TextEditActivity.RESULT_TEXT);
+                    if (modifiedText != null) {
+                        textOutput.setText(modifiedText);
+                        saveModifiedText(modifiedText);
+                    }
+                }
+            });
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
+        Log.d(TAG, "Activity created");
 
-        initSharedPreferences();
         initViews();
         initManagers();
-        initActivityLaunchers();
+
+        // Verifica periodicamente lo stato del TTS
+        new Handler(Looper.getMainLooper()).postDelayed(() -> {
+            if (!ttsManager.isReady()) {
+                Log.w(TAG, "TTS engine still initializing");
+                Toast.makeText(this, "TTS engine initializing...", Toast.LENGTH_SHORT).show();
+            } else {
+                Log.d(TAG, "TTS engine is ready");
+            }
+        }, 1000);
+
         setupListeners();
         checkPermissions();
-    }
-
-    private void initSharedPreferences() {
-        sharedPreferences = getSharedPreferences("AppSettings", MODE_PRIVATE);
     }
 
     private void initViews() {
@@ -92,80 +128,132 @@ public class MainActivity extends AppCompatActivity implements OCRManager.OCRCal
         ttsManager = new TextToSpeechManager(this);
     }
 
-    private void initActivityLaunchers() {
-        requestPermissionLauncher = registerForActivityResult(
-                new ActivityResultContracts.RequestPermission(),
-                isGranted -> showMessage(isGranted ? "Permesso concesso" : "Permesso negato"));
-
-        pickImageLauncher = registerForActivityResult(
-                new ActivityResultContracts.StartActivityForResult(),
-                result -> {
-                    if (result.getResultCode() == Activity.RESULT_OK) {
-                        Intent data = result.getData();
-                        if (data != null) {
-                            Uri selectedImageUri = data.getData();
-                            if (selectedImageUri != null) {
-                                processSelectedImage(selectedImageUri);
-                            } else {
-                                showMessage("Nessuna immagine selezionata");
-                            }
-                        }
-                    }
-                });
-    }
-
     private void setupListeners() {
         findViewById(R.id.btnCapture).setOnClickListener(v -> cameraManager.openCamera());
-
         findViewById(R.id.btnPickImage).setOnClickListener(v -> pickImageFromGallery());
-
-        findViewById(R.id.btnExtractText).setOnClickListener(v -> {
-            Bitmap image = cameraManager.getCapturedImage();
-            if (image != null) {
-                recognizeTextFromImage(image);
-            } else {
-                showMessage("Nessuna immagine da elaborare");
-            }
-        });
+        findViewById(R.id.btnExtractText).setOnClickListener(v -> processCapturedImage());
+        findViewById(R.id.btnPlay).setOnClickListener(v -> speakText());
+        findViewById(R.id.btnPause).setOnClickListener(v -> ttsManager.pause());
+        findViewById(R.id.btnStop).setOnClickListener(v -> ttsManager.stop());
+        findViewById(R.id.btnModText).setOnClickListener(v -> openTextEditor());
+        findViewById(R.id.btnDownloadAudio).setOnClickListener(v -> saveAudioFile());
+        findViewById(R.id.btnAudioLibrary).setOnClickListener(v ->
+                startActivity(new Intent(this, AudioLibraryActivity.class)));
+        findViewById(R.id.btnSettings).setOnClickListener(v ->
+                startActivity(new Intent(this, SettingsActivity.class)));
 
         findViewById(R.id.btnPlay).setOnClickListener(v -> {
             String text = textOutput.getText().toString();
             if (!text.isEmpty()) {
-                ttsManager.speak(text);
+                if (ttsManager.isReady()) {
+                    ttsManager.speak(text);
+                } else {
+                    Toast.makeText(this, "Motore vocale non pronto, attendere...", Toast.LENGTH_SHORT).show();
+                }
             } else {
                 showMessage("Nessun testo da riprodurre");
-            }
-        });
-
-        findViewById(R.id.btnPause).setOnClickListener(v -> ttsManager.pause());
-        findViewById(R.id.btnStop).setOnClickListener(v -> ttsManager.stop());
-
-        findViewById(R.id.btnModText).setOnClickListener(v -> {
-            String currentText = textOutput.getText().toString();
-            if (!currentText.isEmpty()) {
-                openTextEditor(currentText);
-            } else {
-                showMessage("Nessun testo da modificare");
             }
         });
 
         findViewById(R.id.btnDownloadAudio).setOnClickListener(v -> {
             String text = textOutput.getText().toString();
             if (!text.isEmpty()) {
-                saveAudioFile(text);
+                if (ttsManager.isReady()) {
+                    String filename = "audio_" + System.currentTimeMillis() + ".wav";
+                    ttsManager.saveAudioToFile(text, filename);
+                    Toast.makeText(this, "Salvataggio audio iniziato: " + filename, Toast.LENGTH_SHORT).show();
+
+                    // Verifica dopo un ritardo se il file è stato creato
+                    new Handler(Looper.getMainLooper()).postDelayed(() -> {
+                        File file = new File(getExternalFilesDir(null), filename);
+                        if (file.exists()) {
+                            Toast.makeText(this, "Audio salvato in: " + file.getAbsolutePath(), Toast.LENGTH_LONG).show();
+                        } else {
+                            Toast.makeText(this, "Errore nel salvataggio dell'audio", Toast.LENGTH_SHORT).show();
+                        }
+                    }, 2000);
+                } else {
+                    Toast.makeText(this, "Motore vocale non pronto", Toast.LENGTH_SHORT).show();
+                }
             } else {
                 showMessage("Nessun testo da convertire");
             }
         });
-
-        findViewById(R.id.btnAudioLibrary).setOnClickListener(v ->
-                startActivity(new Intent(this, AudioLibraryActivity.class)));
-
-        findViewById(R.id.btnSettings).setOnClickListener(v ->
-                startActivity(new Intent(this, SettingsActivity.class)));
     }
 
-    // Implementazione OCRCallback
+    private void processCapturedImage() {
+        Bitmap image = cameraManager.getCapturedImage();
+        if (image != null) {
+            recognizeTextFromImage(image);
+        } else {
+            showMessage("Nessuna immagine da elaborare");
+        }
+    }
+
+    private void speakText() {
+        String text = textOutput.getText().toString();
+        if (!text.isEmpty()) {
+            ttsManager.speak(text);
+        } else {
+            showMessage("Nessun testo da riprodurre");
+        }
+    }
+
+    private void openTextEditor() {
+        String currentText = textOutput.getText().toString();
+        if (!currentText.isEmpty()) {
+            Intent intent = new Intent(this, TextEditActivity.class);
+            intent.putExtra(TextEditActivity.EXTRA_TEXT, currentText);
+            editTextLauncher.launch(intent);
+        } else {
+            showMessage("Nessun testo da modificare");
+        }
+    }
+
+    private void saveAudioFile() {
+        String text = textOutput.getText().toString();
+        if (!text.isEmpty()) {
+            if (ttsManager.isReady()) {
+                // Crea una directory dedicata se non esiste
+                File audioDir = new File(getExternalFilesDir(null), AUDIO_DIR);
+                if (!audioDir.exists()) {
+                    if (!audioDir.mkdirs()) {
+                        Log.e(TAG, "Failed to create audio directory");
+                        showMessage("Failed to create audio directory");
+                        return;
+                    }
+                }
+
+                String filename = "audio_" + System.currentTimeMillis() + ".wav";
+                File outputFile = new File(audioDir, filename);
+
+                Log.d(TAG, "Attempting to save audio to: " + outputFile.getAbsolutePath());
+                ttsManager.saveAudioToFile(text, outputFile.getAbsolutePath());
+                showMessage("Saving audio...");
+
+                // Verifica dopo un ritardo
+                new Handler(Looper.getMainLooper()).postDelayed(() -> {
+                    if (outputFile.exists()) {
+                        Log.d(TAG, "Audio file created successfully");
+                        showMessage("Audio saved successfully");
+                        // Aggiorna la libreria audio
+                        sendBroadcast(new Intent(Intent.ACTION_MEDIA_SCANNER_SCAN_FILE,
+                                Uri.fromFile(outputFile)));
+                    } else {
+                        Log.e(TAG, "Audio file not created");
+                        showMessage("Failed to save audio");
+                    }
+                }, 3000);
+            } else {
+                Log.e(TAG, "TTS engine not ready");
+                showMessage("TTS engine not ready");
+            }
+        } else {
+            Log.w(TAG, "No text to convert");
+            showMessage("No text to convert");
+        }
+    }
+
     @Override
     public void onOCRComplete(@NonNull String recognizedText) {
         runOnUiThread(() -> {
@@ -185,101 +273,74 @@ public class MainActivity extends AppCompatActivity implements OCRManager.OCRCal
 
     private void recognizeTextFromImage(Bitmap bitmap) {
         showProgress(true);
+        executor.execute(() -> {
+            try {
+                TextRecognizer recognizer = TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS);
+                InputImage image = InputImage.fromBitmap(bitmap, 0);
 
-        // Pulisci eventuali risorse non utilizzate
-        System.gc();
-
-        try {
-            // Crea una nuova istanza del recognizer per ogni elaborazione
-            TextRecognizer recognizer = TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS);
-            InputImage image = InputImage.fromBitmap(bitmap, 0);
-
-            recognizer.process(image)
-                    .addOnSuccessListener(visionText -> {
-                        String resultText = visionText.getText();
-                        textOutput.setText(resultText);
-                        showProgress(false);
-                        recognizer.close(); // Chiudi esplicitamente il recognizer
-                    })
-                    .addOnFailureListener(e -> {
-                        showProgress(false);
-                        showMessage("Errore riconoscimento testo");
-                        Log.e(TAG, "OCR Error", e);
-                        recognizer.close(); // Chiudi esplicitamente il recognizer
-                    });
-        } catch (Exception e) {
-            showProgress(false);
-            showMessage("Errore nell'elaborazione");
-            Log.e(TAG, "Image processing error", e);
-        }
+                recognizer.process(image)
+                        .addOnSuccessListener(visionText -> runOnUiThread(() -> {
+                            textOutput.setText(visionText.getText());
+                            showProgress(false);
+                        }))
+                        .addOnFailureListener(e -> runOnUiThread(() -> {
+                            showProgress(false);
+                            showMessage("Errore riconoscimento testo");
+                            Log.e(TAG, "OCR Error", e);
+                        }));
+            } catch (Exception e) {
+                runOnUiThread(() -> {
+                    showProgress(false);
+                    showMessage("Errore nell'elaborazione");
+                    Log.e(TAG, "Image processing error", e);
+                });
+            }
+        });
     }
 
     private void processSelectedImage(Uri imageUri) {
         showProgress(true);
-        new Thread(() -> {
-            try {
-                // Aggiungi questo controllo iniziale
-                if (imageUri == null) {
-                    throw new IOException("URI immagine nullo");
-                }
-
-                // Usa ContentResolver per ottenere un input stream stabile
-                InputStream inputStream = getContentResolver().openInputStream(imageUri);
-                if (inputStream == null) {
-                    throw new IOException("Impossibile aprire lo stream dell'immagine");
-                }
+        executor.execute(() -> {
+            try (InputStream inputStream = getContentResolver().openInputStream(imageUri)) {
+                if (inputStream == null) throw new IOException("Impossibile aprire lo stream");
 
                 Bitmap bitmap = BitmapFactory.decodeStream(inputStream);
-                inputStream.close();
-
-                if (bitmap == null) {
-                    throw new IOException("Bitmap non decodificato correttamente");
-                }
-
-                // Forza un GC prima dell'elaborazione
-                System.gc();
+                if (bitmap == null) throw new IOException("Bitmap non decodificato");
 
                 runOnUiThread(() -> {
                     imagePreview.setImageURI(imageUri);
                     recognizeTextFromImage(bitmap);
                 });
-
             } catch (Exception e) {
-                Log.e(TAG, "Errore elaborazione immagine", e);
                 runOnUiThread(() -> {
                     showProgress(false);
                     showMessage("Errore: " + e.getMessage());
+                    Log.e(TAG, "Image processing error", e);
                 });
             }
-        }).start();
-    }
-
-    private Bitmap uriToBitmap(Uri uri) throws IOException {
-        if (uri == null) return null;
-
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-            return ImageDecoder.decodeBitmap(ImageDecoder.createSource(getContentResolver(), uri));
-        } else {
-            return BitmapFactory.decodeStream(getContentResolver().openInputStream(uri));
-        }
+        });
     }
 
     private void pickImageFromGallery() {
-        if (ContextCompat.checkSelfPermission(this,
-                Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU ?
-                        Manifest.permission.READ_MEDIA_IMAGES :
-                        Manifest.permission.READ_EXTERNAL_STORAGE) != PackageManager.PERMISSION_GRANTED) {
-
-            ActivityCompat.requestPermissions(this,
-                    new String[]{
-                            Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU ?
-                                    Manifest.permission.READ_MEDIA_IMAGES :
-                                    Manifest.permission.READ_EXTERNAL_STORAGE
-                    },
-                    REQUEST_READ_STORAGE);
-            return;
+        if (hasStoragePermission()) {
+            launchImagePicker();
+        } else {
+            requestStoragePermission();
         }
-        launchImagePicker();
+    }
+
+    private boolean hasStoragePermission() {
+        String permission = Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU ?
+                Manifest.permission.READ_MEDIA_IMAGES :
+                Manifest.permission.READ_EXTERNAL_STORAGE;
+        return ContextCompat.checkSelfPermission(this, permission) == PackageManager.PERMISSION_GRANTED;
+    }
+
+    private void requestStoragePermission() {
+        String permission = Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU ?
+                Manifest.permission.READ_MEDIA_IMAGES :
+                Manifest.permission.READ_EXTERNAL_STORAGE;
+        requestPermissionLauncher.launch(permission);
     }
 
     private void launchImagePicker() {
@@ -289,45 +350,8 @@ public class MainActivity extends AppCompatActivity implements OCRManager.OCRCal
         pickImageLauncher.launch(intent);
     }
 
-    @Override
-    public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions, @NonNull int[] grantResults) {
-        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
-        if (requestCode == REQUEST_READ_STORAGE) {
-            if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
-                launchImagePicker();
-            } else {
-                showMessage("Permesso necessario per accedere alle immagini");
-            }
-        }
-    }
-
-    private void openTextEditor(String text) {
-        Intent intent = new Intent(this, TextEditActivity.class);
-        intent.putExtra(TextEditActivity.EXTRA_TEXT, text);
-        startActivityForResult(intent, REQUEST_EDIT_TEXT);
-    }
-
-    @Override
-    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
-        super.onActivityResult(requestCode, resultCode, data);
-
-        if (resultCode == RESULT_OK && requestCode == REQUEST_EDIT_TEXT && data != null) {
-            String modifiedText = data.getStringExtra(TextEditActivity.RESULT_TEXT);
-            if (modifiedText != null) {
-                textOutput.setText(modifiedText);
-                saveModifiedText(modifiedText);
-            }
-        }
-    }
-
     private void saveModifiedText(String text) {
         // Implementa il salvataggio permanente se necessario
-    }
-
-    private void saveAudioFile(String text) {
-        String filename = "audio_" + System.currentTimeMillis() + ".wav";
-        ttsManager.saveAudioToFile(text, filename);
-        showMessage("Audio salvato come " + filename);
     }
 
     private void showProgress(boolean show) {
@@ -354,13 +378,8 @@ public class MainActivity extends AppCompatActivity implements OCRManager.OCRCal
             requestPermissionLauncher.launch(Manifest.permission.RECORD_AUDIO);
         }
 
-        String storagePermission = Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU ?
-                Manifest.permission.READ_MEDIA_IMAGES :
-                Manifest.permission.READ_EXTERNAL_STORAGE;
-
-        if (ContextCompat.checkSelfPermission(this, storagePermission)
-                != PackageManager.PERMISSION_GRANTED) {
-            requestPermissionLauncher.launch(storagePermission);
+        if (!hasStoragePermission()) {
+            requestStoragePermission();
         }
     }
 

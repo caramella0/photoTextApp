@@ -1,7 +1,6 @@
 package com.phototext.ui;
 
 import android.content.SharedPreferences;
-import android.os.AsyncTask;
 import android.os.Bundle;
 import android.util.Log;
 import android.widget.Button;
@@ -14,45 +13,41 @@ import android.widget.Toast;
 
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.appcompat.app.AppCompatDelegate;
+import androidx.lifecycle.ViewModelProvider;
 
 import com.phototext.R;
+import com.phototext.viewmodel.SettingsViewModel;
 
 import java.net.HttpURLConnection;
 import java.net.URL;
 import java.util.Locale;
+import java.util.concurrent.Executor;
+import java.util.concurrent.Executors;
 
 public class SettingsActivity extends AppCompatActivity {
     private static final String KEY_SERVER_IP = "server_ip";
     private static final String DEFAULT_SERVER_IP = "10.0.2.2";
+
+    private SettingsViewModel viewModel;
     private SharedPreferences preferences;
     private SeekBar pitchSeekBar, speedSeekBar;
     private TextView pitchValue, speedValue;
     private RadioGroup voiceGenderGroup, themeRadioGroup, ttsEngineGroup;
     private EditText serverIpEditText;
-    private Button testConnectionButton;
+
+    private final Executor executor = Executors.newSingleThreadExecutor();
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        preferences = getSharedPreferences("AppSettings", MODE_PRIVATE);
-        applySavedTheme();
         setContentView(R.layout.activity_settings);
+
+        viewModel = new ViewModelProvider(this).get(SettingsViewModel.class);
+        preferences = getSharedPreferences("AppSettings", MODE_PRIVATE);
 
         initViews();
         loadSettings();
-
-        Button btnApplySettings = findViewById(R.id.btnApplySettings);
-        btnApplySettings.setOnClickListener(v -> {
-            saveSettings();
-            Toast.makeText(this, "Impostazioni aggiornate!", Toast.LENGTH_SHORT).show();
-            finish();  // Torna alla MainActivity
-        });
-    }
-
-    private void applySavedTheme() {
-        boolean isDarkTheme = preferences.getBoolean("isDarkTheme", false);
-        AppCompatDelegate.setDefaultNightMode(
-                isDarkTheme ? AppCompatDelegate.MODE_NIGHT_YES : AppCompatDelegate.MODE_NIGHT_NO
-        );
+        setupObservers();
     }
 
     private void initViews() {
@@ -63,13 +58,27 @@ public class SettingsActivity extends AppCompatActivity {
         voiceGenderGroup = findViewById(R.id.voiceGenderGroup);
         themeRadioGroup = findViewById(R.id.themeRadioGroup);
         ttsEngineGroup = findViewById(R.id.ttsEngineGroup);
+        serverIpEditText = findViewById(R.id.serverIpEditText);
+        Button testConnectionButton = findViewById(R.id.testConnectionButton);
 
         pitchSeekBar.setOnSeekBarChangeListener(createSeekBarListener("pitch", pitchValue));
         speedSeekBar.setOnSeekBarChangeListener(createSeekBarListener("speed", speedValue));
-        serverIpEditText = findViewById(R.id.serverIpEditText);
-        testConnectionButton = findViewById(R.id.testConnectionButton);
 
         testConnectionButton.setOnClickListener(v -> testServerConnection());
+
+        findViewById(R.id.btnApplySettings).setOnClickListener(v -> {
+            saveSettings();
+            Toast.makeText(this, "Impostazioni aggiornate!", Toast.LENGTH_SHORT).show();
+            finish();
+        });
+    }
+
+    private void setupObservers() {
+        viewModel.getThemeLiveData().observe(this, isDark -> {
+            AppCompatDelegate.setDefaultNightMode(
+                    isDark ? AppCompatDelegate.MODE_NIGHT_YES : AppCompatDelegate.MODE_NIGHT_NO
+            );
+        });
     }
 
     private void loadSettings() {
@@ -99,68 +108,60 @@ public class SettingsActivity extends AppCompatActivity {
     }
 
     private void saveSettings() {
-        SharedPreferences.Editor editor = preferences.edit();
-
-        float pitch = pitchSeekBar.getProgress() / 50.0f;
-        float speed = speedSeekBar.getProgress() / 50.0f;
-        boolean isDarkTheme = themeRadioGroup.getCheckedRadioButtonId() == R.id.radioDark;
-        String voice = (voiceGenderGroup.getCheckedRadioButtonId() == R.id.voiceMale) ? "male" : "female";
-        String ttsEngine = (ttsEngineGroup.getCheckedRadioButtonId() == R.id.ttsGoogle) ? "google" : "kokoro";
-
-        editor.putFloat("pitch", pitch);
-        editor.putFloat("speed", speed);
-        editor.putBoolean("isDarkTheme", isDarkTheme);
-        editor.putString("voiceGender", voice);
-        editor.putString("ttsEngine", ttsEngine);
-        editor.apply();
-        editor.putString(KEY_SERVER_IP, serverIpEditText.getText().toString());
-        editor.apply();
-        editor.putString("voiceGender",
+        viewModel.setTheme(themeRadioGroup.getCheckedRadioButtonId() == R.id.radioDark);
+        viewModel.setPitch(pitchSeekBar.getProgress() / 50.0f);
+        viewModel.setSpeed(speedSeekBar.getProgress() / 50.0f);
+        viewModel.setVoiceGender(
                 (voiceGenderGroup.getCheckedRadioButtonId() == R.id.voiceMale) ? "male" : "female");
-        editor.apply();
+        viewModel.setTtsEngine(
+                (ttsEngineGroup.getCheckedRadioButtonId() == R.id.ttsGoogle) ? "google" : "kokoro");
+        viewModel.setServerIp(serverIpEditText.getText().toString());
+
+        viewModel.saveSettings();
+        finish();
     }
 
     private void testServerConnection() {
         String ip = serverIpEditText.getText().toString();
-        new ServerConnectionTestTask().execute(ip);
-    }
-
-    private class ServerConnectionTestTask extends AsyncTask<String, Void, Boolean> {
-        @Override
-        protected Boolean doInBackground(String... ips) {
+        executor.execute(() -> {
             try {
-                URL url = new URL("http://" + ips[0] + ":5000/");
+                URL url = new URL("http://" + ip + ":5000/ping");
                 HttpURLConnection connection = (HttpURLConnection) url.openConnection();
                 connection.setRequestMethod("GET");
                 connection.setConnectTimeout(3000);
                 connection.connect();
                 int responseCode = connection.getResponseCode();
                 connection.disconnect();
-                return responseCode == 200;
-            } catch (Exception e) {
-                Log.e("ConnectionTest", "Error testing connection", e);
-                return false;
-            }
-        }
 
-        @Override
-        protected void onPostExecute(Boolean isSuccessful) {
-            String message = isSuccessful ?
-                    "Connessione al server riuscita!" :
-                    "Connessione fallita. Verifica IP e che il server sia attivo";
-            Toast.makeText(SettingsActivity.this, message, Toast.LENGTH_LONG).show();
-        }
+                runOnUiThread(() -> {
+                    String message = responseCode == 200 ?
+                            "Connessione al server riuscita!" :
+                            "Connessione fallita. Verifica IP e che il server sia attivo";
+                    Toast.makeText(this, message, Toast.LENGTH_LONG).show();
+                });
+            } catch (Exception e) {
+                runOnUiThread(() -> {
+                    Toast.makeText(this, "Errore di connessione: " + e.getMessage(), Toast.LENGTH_LONG).show();
+                    Log.e("ConnectionTest", "Error testing connection", e);
+                });
+            }
+        });
     }
 
     private SeekBar.OnSeekBarChangeListener createSeekBarListener(String key, TextView valueText) {
         return new SeekBar.OnSeekBarChangeListener() {
-            @Override public void onProgressChanged(SeekBar seekBar, int progress, boolean fromUser) {
+            @Override
+            public void onProgressChanged(SeekBar seekBar, int progress, boolean fromUser) {
                 float value = progress / 50.0f;
-                valueText.setText(String.format(Locale.US, "%s: %.1f", key.equals("pitch") ? "Tonalità" : "Velocità", value));
+                valueText.setText(String.format(Locale.US, "%s: %.1f",
+                        key.equals("pitch") ? "Tonalità" : "Velocità", value));
             }
 
-            @Override public void onStartTrackingTouch(SeekBar seekBar) {}
-            @Override public void onStopTrackingTouch(SeekBar seekBar) {}
+            @Override
+            public void onStartTrackingTouch(SeekBar seekBar) {}
+
+            @Override
+            public void onStopTrackingTouch(SeekBar seekBar) {}
         };
     }
 }
