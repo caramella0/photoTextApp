@@ -30,6 +30,7 @@ public class AudioLibraryActivity extends AppCompatActivity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_audio_library);
+        Log.d(TAG, "Activity created");
 
         audioFileManager = new AudioFileManager(this);
         adapter = new AudioListAdapter(this::onAudioItemAction);
@@ -41,6 +42,7 @@ public class AudioLibraryActivity extends AppCompatActivity {
     }
 
     private void onAudioItemAction(AudioAction action, File audioFile) {
+        Log.d(TAG, "Action: " + action + " on file: " + audioFile.getName());
         switch (action) {
             case PLAY:
                 playAudio(audioFile);
@@ -55,21 +57,46 @@ public class AudioLibraryActivity extends AppCompatActivity {
     }
 
     private void loadAudioFiles() {
+        Log.d(TAG, "Loading audio files...");
         executor.execute(() -> {
-            List<File> files = audioFileManager.getAudioFiles();
-            mainHandler.post(() -> adapter.updateList(files));
+            try {
+                List<File> files = audioFileManager.getAudioFiles();
+                Log.d(TAG, "Found " + files.size() + " audio files");
+                mainHandler.post(() -> {
+                    adapter.updateList(files);
+                    if (files.isEmpty()) {
+                        showToast("No audio files found");
+                    }
+                });
+            } catch (Exception e) {
+                Log.e(TAG, "Error loading audio files", e);
+                mainHandler.post(() -> showToast("Error loading audio files"));
+            }
         });
     }
 
     private void playAudio(File audioFile) {
+        Log.d(TAG, "Attempting to play: " + audioFile.getAbsolutePath());
         stopAudio();
         try {
             mediaPlayer = new MediaPlayer();
             mediaPlayer.setDataSource(audioFile.getAbsolutePath());
-            mediaPlayer.setOnCompletionListener(mp -> stopAudio());
-            mediaPlayer.prepare();
-            mediaPlayer.start();
-            showToast("Playing: " + audioFile.getName());
+            mediaPlayer.setOnCompletionListener(mp -> {
+                Log.d(TAG, "Playback completed");
+                stopAudio();
+            });
+            mediaPlayer.setOnPreparedListener(mp -> {
+                Log.d(TAG, "MediaPlayer prepared, starting playback");
+                mediaPlayer.start();
+                showToast("Playing: " + audioFile.getName());
+            });
+            mediaPlayer.setOnErrorListener((mp, what, extra) -> {
+                Log.e(TAG, "MediaPlayer error - what: " + what + ", extra: " + extra);
+                stopAudio();
+                showToast("Playback failed");
+                return true;
+            });
+            mediaPlayer.prepareAsync();
         } catch (Exception e) {
             Log.e(TAG, "Playback error", e);
             showToast("Playback failed");
@@ -78,6 +105,7 @@ public class AudioLibraryActivity extends AppCompatActivity {
     }
 
     private void shareAudio(File audioFile) {
+        Log.d(TAG, "Sharing audio file: " + audioFile.getName());
         try {
             Intent shareIntent = new Intent(Intent.ACTION_SEND);
             shareIntent.setType("audio/*");
@@ -85,6 +113,7 @@ public class AudioLibraryActivity extends AppCompatActivity {
                     FileProvider.getUriForFile(this, getPackageName() + ".provider", audioFile));
             shareIntent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
             startActivity(Intent.createChooser(shareIntent, "Share audio"));
+            Log.d(TAG, "Share intent started");
         } catch (Exception e) {
             Log.e(TAG, "Sharing error", e);
             showToast("Sharing failed");
@@ -92,13 +121,16 @@ public class AudioLibraryActivity extends AppCompatActivity {
     }
 
     private void deleteAudio(File audioFile) {
+        Log.d(TAG, "Deleting audio file: " + audioFile.getName());
         executor.execute(() -> {
             boolean success = audioFileManager.deleteAudioFile(audioFile);
             mainHandler.post(() -> {
                 if (success) {
+                    Log.d(TAG, "File deleted successfully");
                     showToast("Deleted successfully");
                     loadAudioFiles();
                 } else {
+                    Log.w(TAG, "Deletion failed");
                     showToast("Deletion failed");
                 }
             });
@@ -107,8 +139,17 @@ public class AudioLibraryActivity extends AppCompatActivity {
 
     private void stopAudio() {
         if (mediaPlayer != null) {
-            mediaPlayer.release();
-            mediaPlayer = null;
+            try {
+                if (mediaPlayer.isPlaying()) {
+                    mediaPlayer.stop();
+                }
+                mediaPlayer.release();
+                Log.d(TAG, "MediaPlayer released");
+            } catch (Exception e) {
+                Log.e(TAG, "Error stopping MediaPlayer", e);
+            } finally {
+                mediaPlayer = null;
+            }
         }
     }
 
@@ -119,6 +160,7 @@ public class AudioLibraryActivity extends AppCompatActivity {
     @Override
     protected void onDestroy() {
         super.onDestroy();
+        Log.d(TAG, "Activity destroyed");
         stopAudio();
         executor.shutdown();
     }
