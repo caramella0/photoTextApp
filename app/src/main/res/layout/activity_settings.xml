@@ -12,7 +12,15 @@
         android:orientation="vertical"
         android:padding="24dp">
 
-        <!-- Voice Settings -->
+        <!-- Primary Color Palette -->
+        <!-- Green: #4CAF50 (actions, confirmations) -->
+        <!-- Blue: #2196F3 (main interactive elements) -->
+        <!-- Purple: #9C27B0 (secondary options) -->
+        <!-- Pink: #E91E63 (female option) -->
+        <!-- White: #FFFFFF (text) -->
+        <!-- Dark background: #121212 -->
+
+        <!-- ========= VOICE SETTINGS SECTION ========= -->
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
@@ -23,7 +31,7 @@
             android:layout_gravity="center"
             android:paddingBottom="16dp"/>
 
-        <!-- Pitch -->
+        <!-- Pitch Control -->
         <TextView
             android:id="@+id/pitchValue"
             android:layout_width="wrap_content"
@@ -41,7 +49,7 @@
             android:thumbTint="#4CAF50"
             android:progressTint="#4CAF50"/>
 
-        <!-- Speed -->
+        <!-- Speed Control -->
         <TextView
             android:id="@+id/speedValue"
             android:layout_width="wrap_content"
@@ -60,7 +68,7 @@
             android:thumbTint="#2196F3"
             android:progressTint="#2196F3"/>
 
-        <!-- Voice Gender -->
+        <!-- Voice Gender Selection -->
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
@@ -96,7 +104,70 @@
                 android:buttonTint="#E91E63"/>
         </RadioGroup>
 
-        <!-- Theme Settings -->
+        <!-- ========= TTS VOICE SELECTION ========= -->
+        <TextView
+            android:id="@+id/ttsEngineLabel"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Motore vocale:"
+            android:textColor="@android:color/white"
+            android:textSize="16sp"
+            android:layout_marginTop="16dp"/>
+
+        <RadioGroup
+            android:id="@+id/ttsEngineGroup"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal">
+
+            <RadioButton
+                android:id="@+id/ttsGoogle"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Google"
+                android:textColor="@android:color/white"/>
+
+            <RadioButton
+                android:id="@+id/ttsKokoro"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Kokoro"
+                android:textColor="@android:color/white"/>
+        </RadioGroup>
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:padding="16dp">
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:textColor="#FFFFFF"
+                android:text="Server Kokoro IP"
+                android:textSize="16sp"
+                android:layout_marginTop="16dp"/>
+
+
+            <EditText
+                android:id="@+id/serverIpEditText"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:hint="Es: 192.168.1.5 o 10.0.2.2"
+                android:inputType="numberDecimal"
+                android:textColor="#FFFFFF"
+                android:visibility="visible" />
+
+            <Button
+                android:id="@+id/testConnectionButton"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Test Connessione"
+                android:layout_gravity="center_horizontal"
+                android:layout_marginTop="8dp"/>
+        </LinearLayout>
+        <!-- ========= THEME SETTINGS SECTION ========= -->
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
@@ -132,7 +203,7 @@
                 android:buttonTint="#9C27B0"/>
         </RadioGroup>
 
-        <!-- Apply Button -->
+        <!-- ========= ACTION BUTTON ========= -->
         <Button
             android:id="@+id/btnApplySettings"
             android:layout_width="match_parent"
@@ -143,5 +214,7 @@
             android:textColor="#FFFFFF"
             android:textAllCaps="false"
             android:elevation="4dp"/>
+
+
     </LinearLayout>
 </ScrollView>

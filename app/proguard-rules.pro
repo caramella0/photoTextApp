@@ -19,3 +19,11 @@
 # If you keep the line number information, uncomment this to
 # hide the original source file name.
 #-renamesourcefileattribute SourceFile
+
+# Regole per MaryTTS
+-keep class marytts.** { *; }
+-keep class de.dfki.** { *; }
+-keep class org.tritonus.** { *; }
+-keep class javax.sound.** { *; }
+-dontwarn org.tritonus.**
+-dontwarn javax.sound.**

@@ -1,156 +1,118 @@
 package com.phototext.tts;
 
-import static android.content.ContentValues.TAG;
-
 import android.content.Context;
+import android.content.SharedPreferences;
 import android.os.Build;
-import android.os.Environment;
 import android.speech.tts.TextToSpeech;
-import android.speech.tts.UtteranceProgressListener;
+import android.speech.tts.Voice;
 import android.util.Log;
-import java.io.File;
 import java.util.Locale;
+import java.util.Set;
+import java.util.HashSet;
 
-public class GoogleTTSManager implements TTSProvider {
+public class GoogleTTSManager {
     private TextToSpeech tts;
+    private final Context context;
     private float pitch = 1.0f;
     private float speed = 1.0f;
-    private String gender = "female";
-    private TTSListener listener;
-    private boolean isReady = false;
-    private final Context context;  // Aggiungi questo campo
+    private String voiceGender = "male"; // Valori: "male" o "female"
 
     public GoogleTTSManager(Context context) {
+        this.context = context;
+        initializeTTS();
+    }
 
-        this.context = context;  // Inizializza il context
-
+    private void initializeTTS() {
         tts = new TextToSpeech(context, status -> {
             if (status == TextToSpeech.SUCCESS) {
-                isReady = true;
-                tts.setLanguage(Locale.getDefault());
-                tts.setOnUtteranceProgressListener(new UtteranceProgressListener() {
-                    @Override public void onStart(String utteranceId) {
-                        if (listener != null) listener.onStart();
-                    }
-                    @Override public void onDone(String utteranceId) {
-                        if (listener != null) listener.onDone();
-                    }
-                    @Override public void onError(String utteranceId) {
-                        if (listener != null) listener.onError("TTS error");
-                    }
-                });
+                configureTTS();
+                loadSettings();
+                setVoiceGender(voiceGender); // Applica il genere vocale
             } else {
-                if (listener != null) listener.onError("TTS initialization failed");
+                Log.e("GoogleTTS", "Errore inizializzazione TTS");
             }
-        }, "com.google.android.tts");
+        });
     }
 
-    @Override
+    private void configureTTS() {
+        int result = tts.setLanguage(Locale.ITALIAN);
+        if (result == TextToSpeech.LANG_MISSING_DATA ||
+                result == TextToSpeech.LANG_NOT_SUPPORTED) {
+            Log.e("GoogleTTS", "Lingua non supportata");
+        }
+    }
+
+    public void setVoiceGender(String gender) {
+        this.voiceGender = gender;
+        applyVoiceSettings();
+    }
+
+    private void applyVoiceSettings() {
+        if (tts == null) return;
+
+        Set<String> features = new HashSet<>();
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+            // Cerca una voce che corrisponda al genere selezionato
+            for (Voice voice : tts.getVoices()) {
+                if (voice.getLocale().equals(Locale.ITALIAN)) {
+                    boolean isFemale = voice.getName().toLowerCase().contains("female") ||
+                            voice.getName().toLowerCase().contains("femmina");
+
+                    if (("female".equals(voiceGender) && isFemale) ||
+                            ("male".equals(voiceGender) && !isFemale)) {
+                        tts.setVoice(voice);
+                        Log.d("GoogleTTS", "Voce selezionata: " + voice.getName());
+                        break;
+                    }
+                }
+            }
+        }
+    }
+
     public void speak(String text) {
-        if (isReady) {
-            tts.speak(text, TextToSpeech.QUEUE_FLUSH, null, "tts_utterance");
+        if (text == null || text.isEmpty()) return;
+
+        tts.setPitch(pitch);
+        tts.setSpeechRate(speed);
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+            tts.speak(text, TextToSpeech.QUEUE_FLUSH, null, "utteranceId");
+        } else {
+            tts.speak(text, TextToSpeech.QUEUE_FLUSH, null);
         }
     }
 
-    @Override
-    public void saveSettings(float pitch, float speed, String gender) {
-        this.pitch = pitch;
-        this.speed = speed;
-        this.gender = gender;
-        applySettings();
+    public void stop() {
+        tts.stop();
     }
 
-    @Override
-    public void setLanguage(String languageCode) {
-        if (isReady) {
-            Locale locale = new Locale(languageCode);
-            tts.setLanguage(locale);
+    public void shutdown() {
+        if (tts != null) {
+            tts.stop();
+            tts.shutdown();
         }
     }
 
-    @Override
-    public boolean isSpeaking() {
-        return isReady && tts.isSpeaking();
-    }
-
-    @Override
-    public void setTtsListener(TTSListener listener) {
-        this.listener = listener;
+    public void loadSettings() {
+        SharedPreferences prefs = context.getSharedPreferences("AppSettings", Context.MODE_PRIVATE);
+        pitch = prefs.getFloat("pitch", 1.0f);
+        speed = prefs.getFloat("speed", 1.0f);
+        voiceGender = prefs.getString("voiceGender", "male");
+        applyVoiceSettings(); // Applica le impostazioni caricate
     }
 
     public void saveAudioToFile(String text, String filename) {
-        if (isReady && android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.LOLLIPOP) {
-            try {
-                // Crea la directory se non esiste
-                File audioDir = new File(context.getExternalFilesDir(Environment.DIRECTORY_MUSIC), "AudioEstratti");
-                if (!audioDir.exists() && !audioDir.mkdirs()) {
-                    Log.e(TAG, "Failed to create directory");
-                    if (listener != null) listener.onError("Errore creazione cartella");
-                    return;
-                }
-
-                File file = new File(audioDir, filename);
-                int result = tts.synthesizeToFile(text, null, file, "tts_file");
-
-                if (result == TextToSpeech.SUCCESS) {
-                    Log.d(TAG, "Audio saved to: " + file.getAbsolutePath());
-                    if (listener != null) listener.onDone();
-                } else {
-                    Log.e(TAG, "Failed to save audio file");
-                    if (listener != null) listener.onError("Errore nel salvataggio");
-                }
-            } catch (Exception e) {
-                Log.e(TAG, "Error saving audio", e);
-                if (listener != null) listener.onError("Errore: " + e.getMessage());
-            }
-        } else {
-            String errorMsg = "Funzionalità non disponibile";
-            if (!isReady) errorMsg += " (TTS non pronto)";
-            if (Build.VERSION.SDK_INT < Build.VERSION_CODES.LOLLIPOP) {
-                errorMsg += " (Richiede Android Lollipop o superiore)";
-            }
-            Log.w(TAG, errorMsg);
-            if (listener != null) listener.onError(errorMsg);
-        }
+        // Può essere aggiunto usando setAudioParams + synthesizeToFile()
+        // Funzione opzionale per salvataggio offline
     }
-    private void applySettings() {
-        if (isReady) {
-            tts.setPitch(pitch);
-            tts.setSpeechRate(speed);
 
-            // Implementazione migliore per la selezione della voce
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
-                for (android.speech.tts.Voice voice : tts.getVoices()) {
-                    if (gender.equals("female") && voice.getName().toLowerCase().contains("female")) {
-                        tts.setVoice(voice);
-                        break;
-                    } else if (gender.equals("male") && voice.getName().toLowerCase().contains("male")) {
-                        tts.setVoice(voice);
-                        break;
-                    }
-                }
+    public void logAvailableVoices() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+            for (Voice voice : tts.getVoices()) {
+                Log.d("GoogleTTS", "Voice: " + voice.getName() +
+                        ", Locale: " + voice.getLocale() +
+                        ", Gender: " + (voice.getName().toLowerCase().contains("female") ? "female" : "male"));
             }
         }
     }
-
-    @Override
-    public void pause() {
-        if (isReady) tts.stop();
-    }
-
-    @Override
-    public void resume() {
-        // Implementazione specifica se necessario
-    }
-
-    @Override
-    public void stop() {
-        if (isReady) tts.stop();
-    }
-
-    @Override
-    public void shutdown() {
-        if (tts != null) tts.shutdown();
-    }
-
 }

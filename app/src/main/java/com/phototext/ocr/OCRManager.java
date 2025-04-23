@@ -4,7 +4,6 @@ import android.content.Context;
 import android.graphics.Bitmap;
 import android.graphics.Color;
 import android.util.Log;
-import android.widget.TextView;
 import com.google.mlkit.vision.common.InputImage;
 import com.google.mlkit.vision.text.TextRecognition;
 import com.google.mlkit.vision.text.TextRecognizer;
@@ -14,35 +13,46 @@ import java.util.Objects;
 
 public class OCRManager {
     private final TextRecognizer recognizer;
-    private final TextView textView;
+    private final OCRCallback callback;
 
-    public OCRManager(Context context, TextView textView) {
+    public interface OCRCallback {
+        void onOCRComplete(String recognizedText);
+        void onOCRError(Exception e);
+    }
+
+    public OCRManager(Context context, OCRCallback callback) {
         this.recognizer = TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS);
-        this.textView = textView;
+        this.callback = callback;
     }
 
     public void extractText(Bitmap bitmap) {
         if (bitmap == null || bitmap.getWidth() == 0 || bitmap.getHeight() == 0) {
-            textView.setText("Errore: Nessuna immagine valida.");
-            Log.e("OCR_ERROR", "Bitmap nullo o non valido.");
+            Exception e = new IllegalArgumentException("Bitmap nullo o non valido");
+            Log.e("OCR_ERROR", "Bitmap nullo o non valido.", e);
+            callback.onOCRError(e);
             return;
         }
 
-        // Miglioriamo il contrasto per il riconoscimento del testo
-        Bitmap processedBitmap = enhanceImage(bitmap);
+        try {
+            // Miglioriamo il contrasto per il riconoscimento del testo
+            Bitmap processedBitmap = enhanceImage(bitmap);
+            InputImage image = InputImage.fromBitmap(processedBitmap, 0);
 
-        InputImage image = InputImage.fromBitmap(processedBitmap, 0);
-        recognizer.process(image)
-                .addOnSuccessListener(result -> {
-                    String rawText = result.getText();
-                    String formattedText = formatText(rawText);
-                    textView.setText(formattedText);
-                    Log.d("OCR_SUCCESS", "Testo riconosciuto: " + formattedText);
-                })
-                .addOnFailureListener(e -> {
-                    Log.e("OCR_ERROR", "Errore nel riconoscimento del testo", e);
-                    textView.setText("Errore nell'estrazione del testo.");
-                });
+            recognizer.process(image)
+                    .addOnSuccessListener(result -> {
+                        String rawText = result.getText();
+                        String formattedText = formatText(rawText);
+                        Log.d("OCR_SUCCESS", "Testo riconosciuto: " + formattedText);
+                        callback.onOCRComplete(formattedText);
+                    })
+                    .addOnFailureListener(e -> {
+                        Log.e("OCR_ERROR", "Errore nel riconoscimento del testo", e);
+                        callback.onOCRError(e);
+                    });
+        } catch (Exception e) {
+            Log.e("OCR_ERROR", "Errore durante l'elaborazione dell'immagine", e);
+            callback.onOCRError(e);
+        }
     }
 
     /**

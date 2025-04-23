@@ -1,33 +1,45 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
     package="com.phototext">
 
-    <!-- Permessi per la fotocamera -->
+    <!-- Permessi necessari -->
     <uses-permission android:name="android.permission.CAMERA" />
-    <uses-feature android:name="android.hardware.camera" android:required="true" />
-
-    <!-- Permessi per internet e pubblicità -->
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
     <uses-permission android:name="android.permission.INTERNET" />
-    <uses-permission android:name="com.google.android.gms.permission.AD_ID" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
 
-    <!-- Permessi per lo storage (gestione per diverse versioni Android) -->
+    <!-- Permessi per lo storage con compatibilità per diverse versioni Android -->
     <uses-permission android:name="android.permission.READ_MEDIA_AUDIO" />
+    <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" />
     <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE"
         android:maxSdkVersion="32" />
     <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE"
         android:maxSdkVersion="28" />
     <uses-permission android:name="android.permission.ACCESS_MEDIA_LOCATION" />
 
-    <!-- Permesso per la cattura di immagini -->
+    <!-- Permesso per l'ID pubblicitario (opzionale, rimuovere se non serve) -->
+    <uses-permission android:name="com.google.android.gms.permission.AD_ID"
+        tools:node="remove" />
+
+    <!-- Feature hardware -->
+    <uses-feature android:name="android.hardware.camera" android:required="true" />
+    <uses-feature android:name="android.hardware.camera.autofocus" android:required="false" />
+    <uses-feature android:name="android.hardware.microphone" android:required="false" />
+
+    <!-- Configurazione per scatto foto su Android 11+ -->
     <queries>
         <intent>
             <action android:name="android.media.action.IMAGE_CAPTURE" />
         </intent>
+        <intent>
+            <action android:name="android.intent.action.PICK" />
+            <data android:mimeType="image/*" />
+        </intent>
     </queries>
 
-    <!-- Configurazione legacy storage per Android 10+ -->
     <application
+        android:allowBackup="true"
         android:dataExtractionRules="@xml/data_extraction_rules"
         android:fullBackupContent="@xml/backup_rules"
         android:icon="@mipmap/ic_launcher"
@@ -35,9 +47,12 @@
         android:roundIcon="@mipmap/ic_launcher_round"
         android:supportsRtl="true"
         android:theme="@style/Theme.PhotoText"
-        android:requestLegacyExternalStorage="true">
+        android:requestLegacyExternalStorage="true"
+        android:largeHeap="true"
+        android:usesCleartextTraffic="true"
+        tools:targetApi="31">
 
-        <!-- FileProvider per la condivisione di file -->
+        <!-- FileProvider per la condivisione sicura di file -->
         <provider
             android:name="androidx.core.content.FileProvider"
             android:authorities="${applicationId}.provider"
@@ -52,7 +67,9 @@
         <activity
             android:name=".ui.MainActivity"
             android:exported="true"
-            android:screenOrientation="fullSensor">
+            android:launchMode="singleTop"
+            android:screenOrientation="fullSensor"
+            android:windowSoftInputMode="adjustResize">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
@@ -63,20 +80,42 @@
         <activity
             android:name=".ui.SettingsActivity"
             android:exported="false"
-            android:screenOrientation="fullSensor" />
+            android:parentActivityName=".ui.MainActivity"
+            android:screenOrientation="fullSensor">
+            <meta-data
+                android:name="android.support.PARENT_ACTIVITY"
+                android:value=".ui.MainActivity" />
+        </activity>
 
         <!-- Activity della libreria audio -->
         <activity
             android:name=".ui.AudioLibraryActivity"
             android:exported="false"
-            android:screenOrientation="fullSensor" />
+            android:parentActivityName=".ui.MainActivity"
+            android:screenOrientation="fullSensor">
+            <meta-data
+                android:name="android.support.PARENT_ACTIVITY"
+                android:value=".ui.MainActivity" />
+        </activity>
 
         <!-- Activity della modifica del testo -->
         <activity
             android:name=".ui.TextEditActivity"
-            android:label="Modifica Testo"
-            android:windowSoftInputMode="adjustResize" />
-        <!-- Aggiungi qui altre activity se necessario -->
+            android:exported="false"
+            android:label="@string/text_edit_title"
+            android:parentActivityName=".ui.MainActivity"
+            android:windowSoftInputMode="adjustResize">
+            <meta-data
+                android:name="android.support.PARENT_ACTIVITY"
+                android:value=".ui.MainActivity" />
+        </activity>
 
+        <!-- Servizio TTS (se necessario in futuro) -->
+        <!--
+        <service
+            android:name=".tts.TTSService"
+            android:exported="false"
+            android:label="Text-to-Speech Service" />
+        -->
     </application>
 </manifest>
