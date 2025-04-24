@@ -2,6 +2,7 @@ package com.phototext.ui;
 
 import android.Manifest;
 import android.app.Activity;
+import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
@@ -26,6 +27,7 @@ import androidx.activity.result.contract.ActivityResultContracts;
 import androidx.annotation.NonNull;
 import androidx.annotation.RequiresApi;
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.appcompat.app.AppCompatDelegate;
 import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
 
@@ -99,32 +101,33 @@ public class MainActivity extends AppCompatActivity implements OCRManager.OCRCal
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        setContentView(R.layout.activity_main);
-        Log.d(TAG, "Activity created");
-        initViews();
-        initManagers();
+        setContentView(R.layout.activity_main); // <-- prima cosa da fare!
 
-        // Verifica periodicamente lo stato del TTS
+        Log.d(TAG, "MainActivity created");
+
+        initViews();       // Inizializza la UI
+        initManagers();    // Inizializza componenti vari (es. OCR, ecc.)
+        setupListeners();  // Collega i listener dei pulsanti
+        checkPermissions(); // Verifica i permessi
+
+        reloadAppSettings(); // <-- Applica le impostazioni salvate (tema, TTS, ecc.)
+
+        // Verifica se il TTS è pronto dopo un po'
         new Handler(Looper.getMainLooper()).postDelayed(() -> {
-            if (!ttsManager.isReady()) {
+            if (ttsManager != null && !ttsManager.isReady()) {
                 Log.w(TAG, "TTS engine still initializing");
-                Toast.makeText(this, "TTS engine initializing...", Toast.LENGTH_SHORT).show();
+                Toast.makeText(this, "Motore TTS in inizializzazione...", Toast.LENGTH_SHORT).show();
             } else {
-                Log.d(TAG, "TTS engine is ready");
+                Log.d(TAG, "TTS engine pronto");
             }
         }, 1000);
-
-        setupListeners();
-        checkPermissions();
-
     }
+
 
     @Override
     protected void onResume() {
         super.onResume();
-        initializeTTSManager();
-        loadSettings();
-        initializeTTSManager();
+        reloadAppSettings();
     }
 
     private void initializeTTSManager() {
@@ -140,12 +143,15 @@ public class MainActivity extends AppCompatActivity implements OCRManager.OCRCal
         }
     }
 
-    private void loadSettings() {
-        SharedPreferences preferences = getSharedPreferences("AppSettings", MODE_PRIVATE);
-        String serverIp = preferences.getString("server_ip", "10.0.2.2");
-        // Qui puoi loggare o usare il valore
-        Log.d("MainActivity", "Server IP caricato: " + serverIp);
-        // Altri parametri come pitch, speed, voice, engine ecc. possono essere caricati se servono
+    public void loadSettings() {
+        SharedPreferences prefs = context.getSharedPreferences("AppSettings", Context.MODE_PRIVATE);
+        pitch = prefs.getFloat("pitch", 1.0f);
+        speed = prefs.getFloat("speed", 1.0f);
+        voiceGender = prefs.getString("voiceGender", "male");
+
+        if (isInitialized) {
+            applyVoiceSettings();
+        }
     }
 
     private void initViews() {

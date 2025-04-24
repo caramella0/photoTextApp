@@ -24,6 +24,8 @@ public class GoogleTTSManager implements BaseTTSManager {
 
     public GoogleTTSManager(Context context) {
         this.context = context;
+        loadSettings();
+
         this.tts = new TextToSpeech(context, status -> {
             if (status == TextToSpeech.SUCCESS) {
                 isInitialized = true;
@@ -96,7 +98,6 @@ public class GoogleTTSManager implements BaseTTSManager {
     }
 
     public void speak(String text) {
-        loadSettings(); // Carica le impostazioni prima di iniziare la sintesi vocale
         if (text == null || text.isEmpty()) {
             Log.w("GoogleTTS", "Testo vuoto per la sintesi");
             return;
