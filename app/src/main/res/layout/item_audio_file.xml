@@ -1,49 +1,57 @@
 <?xml version="1.0" encoding="utf-8"?>
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<androidx.cardview.widget.CardView
+    xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
-    android:orientation="horizontal"
-    android:padding="12dp"
-    android:background="?android:attr/selectableItemBackground"
-    android:gravity="center_vertical">
+    android:layout_marginBottom="@dimen/audio_item_margin"
+    app:cardElevation="2dp"
+    app:cardCornerRadius="4dp">
 
-    <TextView
-        android:id="@+id/txtAudioName"
-        android:layout_width="0dp"
+    <LinearLayout
+        android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_weight="1"
-        android:textSize="16sp"
-        android:textColor="#FFFFFF"
-        android:maxLines="1"
-        android:ellipsize="end"
-        android:paddingStart="8dp"
-        android:paddingEnd="8dp" />
+        android:orientation="horizontal"
+        android:padding="@dimen/audio_item_padding"
+        android:background="?attr/selectableItemBackground">
 
-    <ImageButton
-        android:id="@+id/btnPlay"
-        android:layout_width="48dp"
-        android:layout_height="48dp"
-        android:src="@drawable/ic_play"
-        android:contentDescription="@string/play"
-        android:background="?attr/selectableItemBackgroundBorderless"
-        app:tint="#4CAF50" />
+        <TextView
+            android:id="@+id/txtAudioName"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:textSize="@dimen/audio_name_text_size"
+            android:ellipsize="end"
+            android:maxLines="1"
+            android:textColor="@android:color/black"/>
 
-    <ImageButton
-        android:id="@+id/btnShare"
-        android:layout_width="48dp"
-        android:layout_height="48dp"
-        android:src="@drawable/ic_share"
-        android:contentDescription="@string/share"
-        android:background="?attr/selectableItemBackgroundBorderless"
-        app:tint="#2196F3" />
+        <ImageButton
+            android:id="@+id/btnPlay"
+            android:layout_width="@dimen/audio_action_button_size"
+            android:layout_height="@dimen/audio_action_button_size"
+            android:layout_marginStart="@dimen/audio_action_button_margin"
+            android:src="@drawable/ic_play"
+            android:contentDescription="@string/play"
+            android:background="?attr/selectableItemBackgroundBorderless"/>
 
-    <ImageButton
-        android:id="@+id/btnDelete"
-        android:layout_width="48dp"
-        android:layout_height="48dp"
-        android:src="@drawable/ic_delete"
-        android:contentDescription="@string/delete"
-        android:background="?attr/selectableItemBackgroundBorderless"
-        app:tint="#F44336" />
-</LinearLayout>
+        <ImageButton
+            android:id="@+id/btnShare"
+            android:layout_width="@dimen/audio_action_button_size"
+            android:layout_height="@dimen/audio_action_button_size"
+            android:layout_marginStart="@dimen/audio_action_button_margin"
+            android:src="@drawable/ic_share"
+            android:contentDescription="@string/share"
+            android:background="?attr/selectableItemBackgroundBorderless"/>
+
+        <ImageButton
+            android:id="@+id/btnDelete"
+            android:layout_width="@dimen/audio_action_button_size"
+            android:layout_height="@dimen/audio_action_button_size"
+            android:layout_marginStart="@dimen/audio_action_button_margin"
+            android:src="@drawable/ic_delete"
+            android:contentDescription="@string/delete"
+            android:background="?attr/selectableItemBackgroundBorderless"/>
+
+    </LinearLayout>
+
+</androidx.cardview.widget.CardView>

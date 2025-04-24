@@ -4,13 +4,14 @@ import android.content.Context;
 import android.content.SharedPreferences;
 import android.util.Log;
 
+import java.io.File;
+
 public class TextToSpeechManager implements BaseTTSManager {
     private static final String TAG = "TextToSpeechManager";
     private final Context context;
     private GoogleTTSManager googleTTS;
     private KokoroTTSManager kokoroTTS;
     private String selectedTTS;
-    private String voiceGender;
     private boolean isGoogleTTSReady = false;
 
     public TextToSpeechManager(Context context) {
@@ -65,7 +66,7 @@ public class TextToSpeechManager implements BaseTTSManager {
     public void loadSettings() {
         SharedPreferences prefs = context.getSharedPreferences("AppSettings", Context.MODE_PRIVATE);
         selectedTTS = prefs.getString("ttsEngine", "google");
-        voiceGender = prefs.getString("voiceGender", "male");
+        String voiceGender = prefs.getString("voiceGender", "male");
         Log.d(TAG, "Loaded settings - Engine: " + selectedTTS + ", Voice: " + voiceGender);
 
         if (googleTTS != null && "google".equals(selectedTTS)) {
@@ -74,15 +75,23 @@ public class TextToSpeechManager implements BaseTTSManager {
     }
 
     public void saveAudioToFile(String text, String filename) {
-        Log.d(TAG, "Request to save audio to file: " + filename);
+        Log.d(TAG, "Request to save audio to file");
         if (text == null || text.isEmpty()) {
             Log.w(TAG, "Empty or null text provided for saving");
             return;
         }
 
         if ("google".equals(selectedTTS) && googleTTS != null) {
-            Log.d(TAG, "Saving with GoogleTTS");
-            googleTTS.saveAudioToFile(text, filename);
+            // Genera un percorso sicuro invece di usare quello fornito
+            File outputDir = context.getExternalFilesDir("tts_audio");
+            if (outputDir == null) {
+                outputDir = context.getFilesDir();
+            }
+            String safeFileName = "audio_" + System.currentTimeMillis() + ".wav";
+            File outputFile = new File(outputDir, safeFileName);
+
+            Log.d(TAG, "Saving with GoogleTTS to: " + outputFile.getAbsolutePath());
+            googleTTS.saveAudioToFile(text, outputFile.getAbsolutePath());
         } else if ("kokoro".equals(selectedTTS) && kokoroTTS != null) {
             Log.w(TAG, "Audio saving not supported for Kokoro");
         } else {
@@ -101,5 +110,13 @@ public class TextToSpeechManager implements BaseTTSManager {
         Log.d(TAG, "Shutting down TTS");
         if (googleTTS != null) googleTTS.shutdown();
         if (kokoroTTS != null) kokoroTTS.stop();
+    }
+
+    public boolean isGoogleTTSReady() {
+        return isGoogleTTSReady;
+    }
+
+    public void setGoogleTTSReady(boolean googleTTSReady) {
+        isGoogleTTSReady = googleTTSReady;
     }
 }

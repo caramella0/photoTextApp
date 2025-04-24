@@ -122,6 +122,42 @@ public class GoogleTTSManager {
             applyVoiceSettings();
         }
     }
+
+    public void saveAudioToFile(String text, String filePath) {
+        if (!isInitialized) {
+            Log.e(TAG, "TTS not initialized for saving");
+            return;
+        }
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+            // Usa la directory interna dell'app invece di un percorso arbitrario
+            File outputDir = context.getExternalFilesDir("tts_audio");
+            if (outputDir == null) {
+                outputDir = context.getFilesDir(); // Fallback alla directory interna
+            }
+
+            // Crea il nome file univoco
+            String fileName = "audio_" + System.currentTimeMillis() + ".wav";
+            File outputFile = new File(outputDir, fileName);
+
+            // Crea le directory se non esistono
+            if (!outputDir.exists()) {
+                if (!outputDir.mkdirs()) {
+                    Log.e(TAG, "Failed to create output directory");
+                    return;
+                }
+            }
+
+            int result = tts.synthesizeToFile(text, null, outputFile, "tts_file");
+            if (result == TextToSpeech.SUCCESS) {
+                Log.d(TAG, "Successfully started audio file synthesis to: " + outputFile.getAbsolutePath());
+            } else {
+                Log.e(TAG, "Failed to start audio file synthesis");
+            }
+        } else {
+            Log.e(TAG, "Audio file saving not supported on this Android version");
+        }
+    }
     public void stop() {
         tts.stop();
     }
@@ -132,35 +168,6 @@ public class GoogleTTSManager {
             tts.shutdown();
         }
     }
-
-    public void saveAudioToFile(String text, String filePath) {
-        if (!isInitialized) {
-            Log.e(TAG, "TTS not initialized for saving");
-            return;
-        }
-
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
-            File outputFile = new File(filePath);
-            // Crea le directory parent se non esistono
-            File parentDir = outputFile.getParentFile();
-            if (parentDir != null && !parentDir.exists()) {
-                if (!parentDir.mkdirs()) {
-                    Log.e(TAG, "Failed to create parent directories");
-                    return;
-                }
-            }
-
-            int result = tts.synthesizeToFile(text, null, outputFile, "tts_file");
-            if (result == TextToSpeech.SUCCESS) {
-                Log.d(TAG, "Successfully started audio file synthesis");
-            } else {
-                Log.e(TAG, "Failed to start audio file synthesis");
-            }
-        } else {
-            Log.e(TAG, "Audio file saving not supported on this Android version");
-        }
-    }
-
     public boolean isInitialized() {
         return isInitialized;
     }

@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Margins and paddings -->
+    <dimen name="audio_item_margin">8dp</dimen>
+    <dimen name="audio_item_padding">12dp</dimen>
+
+    <!-- Text sizes -->
+    <dimen name="audio_name_text_size">16sp</dimen>
+
+    <!-- Button sizes -->
+    <dimen name="audio_action_button_size">36dp</dimen>
+    <dimen name="audio_action_button_margin">8dp</dimen>
+
+    <!-- CardView attributes -->
+    <dimen name="card_corner_radius">4dp</dimen>
+    <dimen name="card_elevation">2dp</dimen>
+</resources>

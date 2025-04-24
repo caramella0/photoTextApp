@@ -51,8 +51,6 @@ public class MainActivity extends AppCompatActivity implements OCRManager.OCRCal
     private ImageView imagePreview;
     private TextView textOutput;
     private ProgressBar progressBar;
-
-    // Managers
     private CameraManager cameraManager;
     public OCRManager ocrManager;
     private TextToSpeechManager ttsManager;
@@ -114,8 +112,8 @@ public class MainActivity extends AppCompatActivity implements OCRManager.OCRCal
 
         setupListeners();
         checkPermissions();
-    }
 
+    }
     private void initViews() {
         imagePreview = findViewById(R.id.imagePreview);
         textOutput = findViewById(R.id.textOutput);
