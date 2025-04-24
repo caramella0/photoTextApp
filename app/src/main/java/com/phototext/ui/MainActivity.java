@@ -36,6 +36,9 @@ import com.google.mlkit.vision.text.latin.TextRecognizerOptions;
 import com.phototext.R;
 import com.phototext.camera.CameraManager;
 import com.phototext.ocr.OCRManager;
+import com.phototext.tts.BaseTTSManager;
+import com.phototext.tts.GoogleTTSManager;
+import com.phototext.tts.KokoroTTSManager;
 import com.phototext.tts.TextToSpeechManager;
 
 import java.io.File;
@@ -54,6 +57,8 @@ public class MainActivity extends AppCompatActivity implements OCRManager.OCRCal
     private CameraManager cameraManager;
     public OCRManager ocrManager;
     private TextToSpeechManager ttsManager;
+    private BaseTTSManager ttsManagerbase;
+
 
     // Executor per operazioni I/O
     private final Executor executor = Executors.newSingleThreadExecutor();
@@ -96,7 +101,6 @@ public class MainActivity extends AppCompatActivity implements OCRManager.OCRCal
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
         Log.d(TAG, "Activity created");
-
         initViews();
         initManagers();
 
@@ -114,6 +118,36 @@ public class MainActivity extends AppCompatActivity implements OCRManager.OCRCal
         checkPermissions();
 
     }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+        initializeTTSManager();
+        loadSettings();
+        initializeTTSManager();
+    }
+
+    private void initializeTTSManager() {
+        SharedPreferences prefs = getSharedPreferences("AppSettings", MODE_PRIVATE);
+        String engine = prefs.getString("ttsEngine", "google");
+
+        if ("kokoro".equals(engine)) {
+            ttsManagerbase = new KokoroTTSManager(this);
+            Log.d("MainActivity", "Inizializzato KokoroTTSManager");
+        } else {
+            ttsManagerbase = new GoogleTTSManager(this);
+            Log.d("MainActivity", "Inizializzato GoogleTTSManager");
+        }
+    }
+
+    private void loadSettings() {
+        SharedPreferences preferences = getSharedPreferences("AppSettings", MODE_PRIVATE);
+        String serverIp = preferences.getString("server_ip", "10.0.2.2");
+        // Qui puoi loggare o usare il valore
+        Log.d("MainActivity", "Server IP caricato: " + serverIp);
+        // Altri parametri come pitch, speed, voice, engine ecc. possono essere caricati se servono
+    }
+
     private void initViews() {
         imagePreview = findViewById(R.id.imagePreview);
         textOutput = findViewById(R.id.textOutput);

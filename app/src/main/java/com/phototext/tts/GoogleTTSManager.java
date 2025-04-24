@@ -14,7 +14,7 @@ import java.util.Locale;
 import java.util.Set;
 import java.util.HashSet;
 
-public class GoogleTTSManager {
+public class GoogleTTSManager implements BaseTTSManager {
     private TextToSpeech tts;
     private final Context context;
     private float pitch = 1.0f;
@@ -96,6 +96,7 @@ public class GoogleTTSManager {
     }
 
     public void speak(String text) {
+        loadSettings(); // Carica le impostazioni prima di iniziare la sintesi vocale
         if (text == null || text.isEmpty()) {
             Log.w("GoogleTTS", "Testo vuoto per la sintesi");
             return;
@@ -110,6 +111,12 @@ public class GoogleTTSManager {
         tts.setSpeechRate(speed);
         tts.speak(text, TextToSpeech.QUEUE_FLUSH, null, "tts_utterance");
         Log.d("GoogleTTS", "Avviata sintesi vocale");
+    }
+
+    @Override
+    public void pause() {
+        Log.d(TAG, "Pausing TTS");
+        stop();
     }
 
     public void loadSettings() {
@@ -159,6 +166,7 @@ public class GoogleTTSManager {
         }
     }
     public void stop() {
+
         tts.stop();
     }
 
